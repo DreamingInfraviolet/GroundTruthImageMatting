@@ -184,22 +184,51 @@ std::string Camera::name()
 	return mDeviceInfo.szDeviceDescription;
 }
 
-bool Camera::iso(int v)
+bool Camera::iso(IsoValue v)
 {
 	return true;
 }
 
-int Camera::iso()
+Camera::IsoValue Camera::iso()
+{
+	EdsDataType dataType;
+	EdsUInt32 dataSize;
+	CHECK_EDS_ERROR(EdsGetPropertySize(mCameraRef, kEdsPropID_Tv, 0, &dataType, &dataSize), "Could not get propery size", ISO_INVALID);
+
+
+}
+
+std::vector<Camera::IsoValue> Camera::isoValues()
+{
+	EdsPropertyDesc desc;
+	CHECK_EDS_ERROR(EdsGetPropertyDesc(mCameraRef, kEdsPropID_ISOSpeed, &desc), "Could not retrieve Iso propery desc", {});
+
+	std::vector<IsoValue> out;
+	out.reserve(desc.numElements);
+
+	for (size_t i = 0; i < desc.numElements; ++i)
+		out.push_back((IsoValue)desc.propDesc[i]);
+
+	return out;
+}
+
+
+bool Camera::shutterSpeed(int v)
+{
+	return true;
+}
+
+int Camera::shutterSpeed()
 {
 	return 0;
 }
 
-bool Camera::exposureTime(int v)
+int Camera::maxShutterSpeed()
 {
-	return true;
+	return 0;
 }
 
-int Camera::exposureTime()
+int Camera::minShutterSpeed()
 {
 	return 0;
 }
@@ -212,6 +241,20 @@ bool Camera::aperture(int v)
 int Camera::aperture()
 {
 	return 0;
+}
+
+std::vector<Camera::ApertureValue> Camera::apertureValues()
+{
+	EdsPropertyDesc desc;
+	CHECK_EDS_ERROR(EdsGetPropertyDesc(mCameraRef, kEdsPropID_Av, &desc), "Could not retrieve Av propery desc", {});
+
+	std::vector<ApertureValue> out;
+	out.reserve(desc.numElements);
+
+	for (size_t i = 0; i < desc.numElements; ++i)
+		out.push_back((ApertureValue)desc.propDesc[i]);
+
+	return out;
 }
 
 bool Camera::focus(int value)
