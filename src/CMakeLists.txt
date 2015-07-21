@@ -10,6 +10,8 @@ add_executable(
 			    io.h
 			    propertymap.cpp
 			    propertymap.h
+			    compatabilitylayer.cpp
+			    compatabilitylayer.h
 			    )
 
 include_directories("${PROJECT_SOURCE_DIR}/src")
@@ -18,9 +20,5 @@ include_directories("${PROJECT_SOURCE_DIR}/src")
 #Add canon API
 target_link_libraries(CameraControl "${PROJECT_SOURCE_DIR}/third_party/canon/EDSDK/Library/EDSDK.lib")
 include_directories("${PROJECT_SOURCE_DIR}/third_party/canon/EDSDK/Header")
-
-#Generate folders
-file(MAKE_DIRECTORY "captured")
-file(MAKE_DIRECTORY "tmp")
 
 #target_link_libraries(example${GTKMM_LIBRARIES})

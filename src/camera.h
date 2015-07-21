@@ -1,6 +1,9 @@
 #pragma once
 #include <vector>
 #include <string>
+#include <atomic>
+#include <mutex>
+#include <condition_variable>
 #include "EDSDKTypes.h"
 #include "propertymap.h"
 
@@ -10,6 +13,13 @@
 class Camera
 {
 private:
+	//Used to manage event threads, etc.
+	//Declared as pointers to allow storage in a vector due to moving being deleted otherwise.
+	std::mutex* mMutex;
+	std::atomic<bool>* mReadyToTakePhoto;
+	std::condition_variable* mConditionVariable;
+
+	//General purpose variables
 	EdsCameraRef mCameraRef = nullptr;
 	EdsDeviceInfo* mDeviceInfo;
 	bool mAvailable;
@@ -32,8 +42,11 @@ public:
 	/** Destructor that cleans up and frees memory, closing any connections. */
 	~Camera();
 
-	/** Returns whether the camera is availalbe for use (it could have been disconnected, etc.) */
+	/** Returns whether the camera is availalbe for general use (it could have been disconnected, etc.) */
 	bool available();
+
+	/** Returns whether the camera is ready to take the next picture. */
+	bool readyToShoot();
 
 	/** Selects this as the active camera, creating a session.
 	* If a camera has been already selected, it is deselected before the operation occurs. */
@@ -76,12 +89,24 @@ public:
 	int aperture();
 
 	/**Takes a picture and stores it in the directory with the given name.
+	* If the previous picture is still not saved, the function will block until that is done.
 	* @param Name The name of the image file to be saved.
 	* @param Directory The path where the file should be saved. The method will try to create the directory if it does not exist.
 	* @return Sucess/Failure of the operation.
 	* */
 	bool shoot(const std::string& name, const std::string& directory);
 
+	/** Resets the shutdown timer of the camera, keeping it awake for longer without powering off. */
+	bool resetShutdownTimer();
+
+	/**
+	* A callback that receives object events from the camera.
+	* Each event spawns a new thread to handle the callback.
+	* @param inEvent Indicates the event type.
+	* @param inRef a reference to the object created by the event.
+	* @param inContext A pointer to the object passed in when registering the callback. In this case, ObjectCallbackInContext*.
+	* */
+	static EdsError EDSCALLBACK objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid *inContext);
 };
 
 
@@ -92,8 +117,11 @@ class CameraList
 {
 private:
 
-	/** Hidden constructor. */
-	CameraList(bool debugOutput);
+	/** Hidden constructor.
+	* @param debugOutput Whether to print non-error output
+	* @param id The id of the cameralist instance
+	* */
+	CameraList(bool debugOutput, unsigned long long id);
 
 	/** A value indicating whether an instance of the class exists. */
 	static bool mExists;
@@ -110,7 +138,23 @@ private:
 	/** Sets a camera as selected. */
 	void activeCamera(Camera* cam);
 
+	/** Returns an ID of the camera session. Might be useless... */
+	unsigned long long sessionID();
+
+	//used to help keep track of the camera session.
+	static unsigned long long camerasCreationRecord;
+
+	unsigned long long mSessionID;
 	bool mInformOutput;
+
+	/**
+	* The struct passed to inContext for the objectCallback.
+	* */
+	struct ObjectCallbackInContext
+	{
+		unsigned long long cameraListSessionID;
+		Camera* camera;
+	};
 
 	friend class Camera;
 public:

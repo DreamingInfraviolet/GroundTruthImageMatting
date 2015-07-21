@@ -4,6 +4,9 @@
 #include <iostream>
 #include <memory>
 
+//Temporary
+#include <Windows.h>
+
 int main(int argc, char** argv)
 {
 	std::auto_ptr<CameraList> list(CameraList::create(true));
@@ -64,7 +67,15 @@ int main(int argc, char** argv)
 		cam.shutterSpeed();
 		*/
 
-		cam.shoot("shot.raw", "captured");
+		//Temporary message loop needed to receive camera events
+		MSG Msg;
+		while (GetMessage(&Msg, NULL, 0, 0) > 0)
+		{
+			TranslateMessage(&Msg);
+			DispatchMessage(&Msg);
+
+			cam.shoot("shot.raw", "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured");
+		}
 
 		cam.deselect();
 	}

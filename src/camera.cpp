@@ -1,8 +1,10 @@
-#include <camera.h>
-#include <io.h>
-#include "EDSDK.h"
 #include <cassert>
 #include <memory>
+#include <ctime>
+#include "EDSDK.h"
+#include "camera.h"
+#include "io.h"
+#include "compatabilitylayer.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +44,7 @@
 bool		CameraList::mExists = false;
 CameraList* CameraList::mInstance = nullptr;
 Camera*		CameraList::mActiveCamera = nullptr;
+unsigned long long CameraList::camerasCreationRecord = 0;
 
 
 //Definition of property mappings
@@ -212,10 +215,11 @@ const PropertyMap CameraList::shutterSpeedMappings =
 
 
 
-CameraList::CameraList(bool debugOutput)
+CameraList::CameraList(bool debugOutput, unsigned long long id)
 {
-	CCINFORM("Creating camera list.");
+	CCINFORM(std::string("Creating camera list with ID ") + ToString(id));
 	mInformOutput = debugOutput;
+	mSessionID = id;
 }
 
 CameraList* CameraList::create(bool debugOutput)
@@ -224,7 +228,7 @@ CameraList* CameraList::create(bool debugOutput)
 		return nullptr;
 	else
 	{
-		CameraList* cl = new CameraList(debugOutput);
+		CameraList* cl = new CameraList(debugOutput, time(nullptr) + (camerasCreationRecord++));
 
 		if (!cl)
 			return nullptr;
@@ -272,6 +276,11 @@ void CameraList::activeCamera(Camera * cam)
 	mActiveCamera = cam;
 }
 
+unsigned long long CameraList::sessionID()
+{
+	return mSessionID;
+}
+
 
 int CameraList::ennumerate()
 {
@@ -283,10 +292,11 @@ int CameraList::ennumerate()
 	EdsUInt32 childCount;
 	CHECK_EDS_ERROR(EdsGetChildCount(cameraList, &childCount), "Could not determine the number of cameras online", -1);
 
-	cameras.reserve(childCount);
+	//cameras.reserve(childCount);
 
 	for (unsigned iCamera = 0; iCamera < childCount; ++iCamera)
 	{
+		//Get basic camera info
 		EdsCameraRef camera;
 		CHECK_EDS_ERROR(EdsGetChildAtIndex(cameraList, iCamera, &camera),
 			std::string("Could not retrieve camera [") + ToString(iCamera) + "]", -1);
@@ -294,7 +304,16 @@ int CameraList::ennumerate()
 		EdsDeviceInfo* info = new EdsDeviceInfo();
 		CHECK_EDS_ERROR(EdsGetDeviceInfo(camera, info), "Could not get camera info", -1);
 
+		//Create camera object
 		cameras.emplace_back(mInformOutput, camera, info);
+
+		//Register object event handler for camera
+		ObjectCallbackInContext* context;
+		CHECK_EDS_ERROR(EdsSetObjectEventHandler(
+			camera, kEdsObjectEvent_All,
+			&Camera::objectCallback,
+			&cameras.back()), "Could not set photo download event handler", -1);
+
 	}
 
 	return childCount;
@@ -310,14 +329,28 @@ Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
 	mDeviceInfo = info;
 	mCameraRef = ref;
 
+	//Initialise pointers
+	mMutex = new std::mutex();
+	mReadyToTakePhoto = new std::atomic<bool>;
+	mConditionVariable = new std::condition_variable;
+
+
 	CCINFORM(std::string("Found Camera ") + name());
 }
+
 
 Camera::~Camera()
 {
 	deselect();
+	if (mMutex)
+		delete mMutex;
+	if (mReadyToTakePhoto)
+		delete mReadyToTakePhoto;
+	if (mConditionVariable)
+		delete mConditionVariable;
 	if (mDeviceInfo)
 		delete mDeviceInfo;
+	EdsRelease(mCameraRef);
 }
 
 bool Camera::available()
@@ -337,6 +370,11 @@ bool Camera::available()
 	if (activeCamera)
 		activeCamera->select();
 	return canSelect;
+}
+
+bool Camera::readyToShoot()
+{
+	return *mReadyToTakePhoto;
 }
 
 bool Camera::select()
@@ -487,19 +525,85 @@ int Camera::aperture()
 
 bool Camera::shoot(const std::string& name, const std::string& directory)
 {
+	//Wait while pictures are being processed:
+	std::unique_lock<std::mutex> lock(*mMutex);
+	while (!*mReadyToTakePhoto)
+	{
+		CCINFORM(std::string("Camera waiting before taking shot ") + name);
+		mConditionVariable->wait(lock);
+	}
+	
+	
 	CCINFORM(std::string("Taking picture to \"") + directory + "\\" + name + "\" for " + this->name());
 
 	//Set shooting mode:
-	int shootingMode = 0;
+	EdsInt32 shootingMode = 0;
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_DriveMode, 0, sizeof(EdsInt32), &shootingMode),
 		"Could not set shooting mode to single shot.", false);
 
 	//Set RAW format
-	int rawMode = 0x00640f0f;
+	EdsInt32 rawMode = 0x00640f0f;
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_ImageQuality, 0, sizeof(EdsInt32), &rawMode),
 		"Could not get the camera quality information.", false);
-	
+
+	//Set save to computer
+	EdsInt32 saveToComputer = kEdsSaveTo_Host;
+	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_SaveTo, 0, sizeof(EdsInt32), &saveToComputer),
+		"Could not set camera save mode.", false);
+
+	//Set space remaining on computer
+	EdsCapacity capacity;
+	capacity.bytesPerSector = 0;
+	capacity.numberOfFreeClusters = 0;
+	capacity.reset = 0;
+	std::unique_ptr<DiskFreeSpace> dfs (FindDiskFreeSpace(directory.c_str()));
+	if (dfs == nullptr)
+		return false;
+	else
+	{
+		capacity.bytesPerSector = dfs->bytesPerSector;
+		capacity.numberOfFreeClusters = dfs->numberOfFreeClusters;
+		capacity.reset = 1;
+	}
+	EdsSetCapacity(mCameraRef, capacity);
+
+	//Send shoot command and force further shoot commands to wait
+	*mReadyToTakePhoto = false;
+	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_TakePicture, 0), "Could not capture an image", false);
+
+	//Now the user must wait for the object callback to download the image.
+
 	return true;
+}
+
+bool Camera::resetShutdownTimer()
+{
+	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_ExtendShutDownTimer, 0), "Could not reset shutdown timer", false);
+	return true;
+}
+
+EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid * inContext)
+{
+	Camera* camera = (Camera*)inContext;
+
+	switch (inEvent)
+	{
+	case kEdsObjectEvent_DirItemRequestTransfer:
+	{
+		//Note: Other switch cases may not be taking a photo
+
+		Inform("Receiving camera download event.");
+		
+		//Notify camera that it can take photos again, and notify a waiting thread, if any.
+		camera->mAvailable = true;
+		camera->mConditionVariable->notify_one();
+	}
+	break;
+	default:
+		Inform("Event not handled");
+	}
+
+	return EDS_ERR_OK;
 }
 
 
