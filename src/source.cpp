@@ -22,18 +22,51 @@ int main(int argc, char** argv)
 
 	std::cout << "Found " << list->cameras.size() << " cameras.\n";
 
-	for (Camera& cam : list->cameras)
+	if (list->cameras.size() > 0)
 	{
+		Camera& cam = list->cameras[0];
 		cam.select();
-		std::cout << cam.name()<<"\n";
 
 		/*
-		cam.iso(Camera::ISO_100);
-		cam.shutterSpeed(100);
-		cam.aperture(10);
-		cam.focus(20);
-		cam.shoot("test.raw", "captured/test");
+		auto iso = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::ISO);
+		std::cout << "Found " << iso.size() << " iso values: ";
+		for (auto i : iso)
+			std::cout << CameraList::isoMappings[i] << " ";
+		std::cout << "\n\n\n";
+
+		auto ape = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::Aperture);
+		std::cout << "Found " << ape.size() << " aperture values: ";
+		for (auto i : ape)
+			std::cout << CameraList::apertureMappings[i] << " ";
+		std::cout << "\n";
+
+		auto shu = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::ShutterSpeed);
+		std::cout << "Found " << shu.size() << " shutter speed values: ";
+		for (auto i : shu)
+			std::cout << CameraList::shutterSpeedMappings[i] << " ";
+		std::cout << "\n";
 		*/
+
+		/*
+		Inform("Testing iso.");
+		cam.iso();
+		cam.iso(0x00000055);
+		cam.iso();
+
+		Inform("Testing aperture.");
+		cam.aperture();
+		cam.aperture(0x2D);
+		cam.aperture();
+
+		Inform("Testing shutter speed.");
+		cam.shutterSpeed();
+		cam.shutterSpeed(0x38);
+		cam.shutterSpeed();
+		*/
+
+		cam.shoot("shot.raw", "captured");
+
+		cam.deselect();
 	}
 
 	return 0;
