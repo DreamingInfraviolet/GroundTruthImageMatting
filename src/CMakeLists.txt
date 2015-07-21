@@ -8,6 +8,8 @@ add_executable(
 			    camera.h
 			    io.cpp
 			    io.h
+			    propertymap.cpp
+			    propertymap.h
 			    )
 
 include_directories("${PROJECT_SOURCE_DIR}/src")

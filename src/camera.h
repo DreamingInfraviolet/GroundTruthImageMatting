@@ -2,6 +2,7 @@
 #include <vector>
 #include <string>
 #include "EDSDKTypes.h"
+#include "propertymap.h"
 
 /**
 * this class serves as an interface to a camera object that is connected to the computer.
@@ -18,91 +19,7 @@ private:
 
 public:
 
-	enum IsoValue
-	{
-		ISO_6 = 0x00000028,
-		ISO_12 = 0x00000030,
-		ISO_25 = 0x00000038,
-		ISO_50 = 0x00000040,
-		ISO_100 = 0x00000048,
-		ISO_125 = 0x0000004b,
-		ISO_160 = 0x0000004d,
-		ISO_200 = 0x00000050,
-		ISO_250 = 0x00000053,
-		ISO_320 = 0x00000055,
-		ISO_400 = 0x00000058,
-		ISO_500 = 0x0000005b,
-		ISO_640 = 0x0000005d,
-		ISO_800 = 0x00000060,
-		ISO_1000 = 0x00000063,
-		ISO_1250 = 0x00000065,
-		ISO_1600 = 0x00000068,
-		ISO_3200 = 0x00000070,
-		ISO_6400 = 0x00000078,
-		ISO_12800 = 0x00000080,
-		ISO_25600 = 0x00000088,
-		ISO_INVALID = 0xffffffff
-	};
-
-	//Note: redo
-	enum ApertureValue
-	{
-		AV_1 = 0x08,
-		AV_11 = 0x40,
-		AV_1_1 = 0x0B,
-		AV_13_1_3 = 0x43, //13 1/3
-		AV_1_2 = 0x0C,
-		AV_13 = 0x44,
-		AV_1_2_1_3 = 0x0D, //1.2 1/3...
-		AV_14 = 0x45,
-		AV_1_4 = 0x10,
-		AV_16 = 0x48,
-		AV_1_6 = 0x13,
-		AV_18 = 0x4B,
-		AV_1_8 = 0x14,
-		AV_19 = 0x4C,
-		AV_1_8_1_3 = 0x15,
-		AV_20 = 0x4D,
-		AV_2 = 0x18,
-		AV_22 = 0x50,
-		AV_2_2 = 0x1B,
-		AV_25 = 0x53,
-		AV_2_5 = 0x1C,
-		AV_27 = 0x54,
-		AV_2_5_1_3 = 0x1D,
-		AV_29 = 0x55,
-		AV_2_8 = 0x20,
-		AV_32 = 0x58,
-		AV_3_2 = 0x23,
-		AV_36 = 0x5B,
-		AV_3_5 = 0x24,
-		AV_38 = 0x5C,
-		AV_3_5_1_3 = 0x25,
-		AV_40 = 0x5D,
-		AV_4 = 0x28,
-		AV_45 = 0x60,
-		AV_4_5 = 0x2B,
-		AV_51 = 0x63,
-		//AV_4_5 = 0x2C,
-		AV_54 = 0x64,
-		AV_5_0 = 0x2D,
-		AV_57 = 0x65,
-		AV_5_6 = 0x30,
-		AV_64 = 0x68,
-		AV_6_3 = 0x33,
-		AV_72 = 0x6B,
-		AV_6_7 = 0x34,
-		AV_76 = 0x6C,
-		AV_7_1 = 0x35,
-		AV_80 = 0x6D,
-		AV_8 = 0x38,
-		AV_91 = 0x70,
-		AV_9 = 0x3B,
-		AV_INVALID = 0xffffffff,
-		AV_9_5 = 0x3C,
-		AV_10 = 0x3D
-	};
-
+	enum class EnnumerableProperties {ShutterSpeed, ISO, Aperture};
 
 	/**
 	* The constructor initialising the camera.
@@ -128,35 +45,35 @@ public:
 	/** Returns the name of the camera. */
 	std::string name();
 
-	/** Sets the iso value. Returns false upon failure. */
-	bool iso(IsoValue v);
 
-	/** Gets the iso value. Returns -1 upon failure. */
-	IsoValue iso();
+	/** Gets all the possible value IDs for the given property. */
+	std::vector<int> ennumeratePossibleValues(EnnumerableProperties ep);
 
-	/** Gets all the possible Iso values for the camera. */
-	std::vector<IsoValue> isoValues();
+	/**
+	Sets the iso value. Returns false upon failure.
+	* @param v The id of the iso value as defined in CameraList::isoMappings.
+	* */
+	bool iso(int v);
 
-	/** Sets the shutter speed. Returns false upon failure. */
+	/** Gets the iso id. Returns -1 upon failure. */
+	int iso();
+
+	/**
+	* Sets the shutter speed. Returns false upon failure.
+	* @param v The id of the shutter speed value as defined in CameraList::shutterSpeedMappingsMappings.
+	* */
 	bool shutterSpeed(int v);
 
-	/** Gets the shutter speed. Returns -1 upon failure. */
+	/** Gets the shutter speed id. Returns -1 upon failure. */
 	int shutterSpeed();
 
-	/** Sets the aperture width. Returns false upon failure. */
+	/** Sets the aperture width. Returns false upon failure.
+	* @param v The id of the aperture value as defined in CameraList::apertureMappings.
+	* */
 	bool aperture(int v);
 
-	/** Gets the aperture width. Returns -1 upon failure. */
+	/** Gets the aperture width id. Returns -1 upon failure. */
 	int aperture();
-
-	/** Gets all the possible Aperture values for the camera. */
-	std::vector<ApertureValue> apertureValues();
-
-	/** Sets the focus value. Returns false upon failure. */
-	bool focus(int value);
-
-	/**Gets the focus value. Returns -1 upon failure. */
-	int focus();
 
 	/**Takes a picture and stores it in the directory with the given name.
 	* @param Name The name of the image file to be saved.
@@ -197,6 +114,12 @@ private:
 
 	friend class Camera;
 public:
+
+	//Mappings between property IDs and their textual counterparts.
+	static const PropertyMap isoMappings;
+	static const PropertyMap apertureMappings;
+	static const PropertyMap shutterSpeedMappings;
+
 
 	/** Performs shutdown operations. */
 	~CameraList();
