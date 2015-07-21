@@ -30,17 +30,27 @@
 							    }
 
 
+//Conditional camera inform: Inform(msg) is called if mInformOutput is true.
+#define CCINFORM(msg) {if(mInformOutput) Inform(msg);}
+
 bool		CameraList::mExists = false;
 CameraList* CameraList::mInstance = nullptr;
 Camera*		CameraList::mActiveCamera = nullptr;
 
-CameraList* CameraList::create()
+
+CameraList::CameraList(bool debugOutput)
+{
+	CCINFORM("Creating camera list.");
+	mInformOutput = debugOutput;
+}
+
+CameraList* CameraList::create(bool debugOutput)
 {
 	if (mExists)
 		return nullptr;
 	else
 	{
-		CameraList* cl = new CameraList();
+		CameraList* cl = new CameraList(debugOutput);
 
 		if (!cl)
 			return nullptr;
@@ -69,6 +79,9 @@ Camera * CameraList::activeCamera()
 
 CameraList::~CameraList()
 {
+	CCINFORM("Shutting down CameraList.");
+
+	cameras.clear();
 	mInstance = nullptr;
 
 	WARN_EDS_ERROR(EdsTerminateSDK(), "Error shutting down the SDK");
@@ -88,13 +101,15 @@ void CameraList::activeCamera(Camera * cam)
 
 int CameraList::ennumerate()
 {
+	CCINFORM("Ennumerating cameras.");
+
 	EdsCameraListRef cameraList = NULL;
 	CHECK_EDS_ERROR(EdsGetCameraList(&cameraList), "Could not populate the Canon camera list", -1);
 
 	EdsUInt32 childCount;
 	CHECK_EDS_ERROR(EdsGetChildCount(cameraList, &childCount), "Could not determine the number of cameras online", -1);
 
-	cameras.resize(childCount);
+	cameras.reserve(childCount);
 
 	for (unsigned iCamera = 0; iCamera < childCount; ++iCamera)
 	{
@@ -102,11 +117,11 @@ int CameraList::ennumerate()
 		CHECK_EDS_ERROR(EdsGetChildAtIndex(cameraList, iCamera, &camera),
 			std::string("Could not retrieve camera [") + ToString(iCamera) + "]", -1);
 
-		cameras[iCamera].mCameraRef = camera;
-		CHECK_EDS_ERROR(EdsGetDeviceInfo(camera, &cameras[iCamera].mDeviceInfo), "Could not get camera info", -1);
+		EdsDeviceInfo* info = new EdsDeviceInfo();
+		CHECK_EDS_ERROR(EdsGetDeviceInfo(camera, info), "Could not get camera info", -1);
 
+		cameras.emplace_back(mInformOutput, camera, info);
 	}
-
 
 	return childCount;
 }
@@ -115,7 +130,21 @@ int CameraList::ennumerate()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
+{
+	mInformOutput = debugOutput;
+	mDeviceInfo = info;
+	mCameraRef = ref;
 
+	CCINFORM(std::string("Creating Camera: ") + name());
+}
+
+Camera::~Camera()
+{
+	deselect();
+	if (mDeviceInfo)
+		delete mDeviceInfo;
+}
 
 bool Camera::available()
 {
@@ -124,6 +153,8 @@ bool Camera::available()
 
 bool Camera::select()
 {
+	CCINFORM(std::string("Selecting camera ") + name());
+
 	//Lock UI
 	EdsSendStatusCommand(mCameraRef, kEdsCameraStatusCommand_UILock, 0);
 
@@ -156,6 +187,8 @@ bool Camera::select()
 
 void Camera::deselect()
 {
+	CCINFORM(std::string("Deselecting camera ") + name());
+
 	//if no CameraList instance
 	CameraList* cameraList = CameraList::instance();
 	if (cameraList == nullptr)
@@ -181,11 +214,12 @@ void Camera::deselect()
 
 std::string Camera::name()
 {
-	return mDeviceInfo.szDeviceDescription;
+	return mDeviceInfo->szDeviceDescription;
 }
 
 bool Camera::iso(IsoValue v)
 {
+	CCINFORM(std::string("Setting iso value ") + ToHexString(v) + " for " + name());
 	return true;
 }
 
@@ -195,18 +229,20 @@ Camera::IsoValue Camera::iso()
 	EdsUInt32 dataSize;
 	CHECK_EDS_ERROR(EdsGetPropertySize(mCameraRef, kEdsPropID_Tv, 0, &dataType, &dataSize), "Could not get propery size", ISO_INVALID);
 
-
+	CCINFORM(std::string("Retrieving iso value ") + "not implemented" + " for " + name());
 }
 
 std::vector<Camera::IsoValue> Camera::isoValues()
 {
+	CCINFORM("Ennumerating iso values.");
+
 	EdsPropertyDesc desc;
 	CHECK_EDS_ERROR(EdsGetPropertyDesc(mCameraRef, kEdsPropID_ISOSpeed, &desc), "Could not retrieve Iso propery desc", {});
 
 	std::vector<IsoValue> out;
 	out.reserve(desc.numElements);
 
-	for (size_t i = 0; i < desc.numElements; ++i)
+	for (int i = 0; i < desc.numElements; ++i)
 		out.push_back((IsoValue)desc.propDesc[i]);
 
 	return out;
@@ -215,60 +251,60 @@ std::vector<Camera::IsoValue> Camera::isoValues()
 
 bool Camera::shutterSpeed(int v)
 {
+	CCINFORM(std::string("Setting shutter speed ") + ToHexString(v) + " for " + name());
 	return true;
 }
 
 int Camera::shutterSpeed()
 {
-	return 0;
-}
-
-int Camera::maxShutterSpeed()
-{
-	return 0;
-}
-
-int Camera::minShutterSpeed()
-{
+	CCINFORM(std::string("Retrieving shutter speed ") + "not implemented" + " for " + name());
 	return 0;
 }
 
 bool Camera::aperture(int v)
 {
+	CCINFORM(std::string("Setting aperture value ") + ToHexString(v) + " for " + name());
 	return true;
 }
 
 int Camera::aperture()
 {
+	CCINFORM(std::string("Retrieving aperture value ") + "not implemented" + " for " + name());
 	return 0;
 }
 
 std::vector<Camera::ApertureValue> Camera::apertureValues()
 {
+	CCINFORM("Ennumerating aperture values.");
+
 	EdsPropertyDesc desc;
 	CHECK_EDS_ERROR(EdsGetPropertyDesc(mCameraRef, kEdsPropID_Av, &desc), "Could not retrieve Av propery desc", {});
 
 	std::vector<ApertureValue> out;
 	out.reserve(desc.numElements);
 
-	for (size_t i = 0; i < desc.numElements; ++i)
+	for (int i = 0; i < desc.numElements; ++i)
 		out.push_back((ApertureValue)desc.propDesc[i]);
 
 	return out;
 }
 
-bool Camera::focus(int value)
+bool Camera::focus(int v)
 {
+	CCINFORM(std::string("Setting focus value ") + ToString(v) + " for " + name());
+
 	return true;
 }
 
 int Camera::focus()
 {
+	CCINFORM(std::string("Retrieving aperture value ") + "not implemented" + " for " + name());
 	return 0;
 }
 
 bool Camera::shoot(const std::string& name, const std::string& directory)
 {
+	CCINFORM(std::string("Taking picture to \"") + directory+"\\"+name+ "\" for " + this->name());
 	return true;
 }
 

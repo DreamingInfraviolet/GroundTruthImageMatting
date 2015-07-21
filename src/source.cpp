@@ -6,7 +6,7 @@
 
 int main(int argc, char** argv)
 {
-	std::auto_ptr<CameraList> list(CameraList::create());
+	std::auto_ptr<CameraList> list(CameraList::create(true));
 
 	if (list.get() == nullptr)
 	{
@@ -26,11 +26,14 @@ int main(int argc, char** argv)
 	{
 		cam.select();
 		std::cout << cam.name()<<"\n";
-		cam.iso(1000);
-		cam.exposureTime(100);
+
+		/*
+		cam.iso(Camera::ISO_100);
+		cam.shutterSpeed(100);
 		cam.aperture(10);
 		cam.focus(20);
 		cam.shoot("test.raw", "captured/test");
+		*/
 	}
 
 	return 0;

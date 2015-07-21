@@ -9,12 +9,13 @@
 class Camera
 {
 private:
-	std::string mName;
 	EdsCameraRef mCameraRef = nullptr;
-	EdsDeviceInfo mDeviceInfo;
+	EdsDeviceInfo* mDeviceInfo;
 	bool mAvailable;
+	bool mInformOutput;
 
 	friend class CameraList;
+
 public:
 
 	enum IsoValue
@@ -43,6 +44,7 @@ public:
 		ISO_INVALID = 0xffffffff
 	};
 
+	//Note: redo
 	enum ApertureValue
 	{
 		AV_1 = 0x08,
@@ -81,7 +83,7 @@ public:
 		AV_45 = 0x60,
 		AV_4_5 = 0x2B,
 		AV_51 = 0x63,
-		AV_4_5 = 0x2C,
+		//AV_4_5 = 0x2C,
 		AV_54 = 0x64,
 		AV_5_0 = 0x2D,
 		AV_57 = 0x65,
@@ -100,6 +102,18 @@ public:
 		AV_9_5 = 0x3C,
 		AV_10 = 0x3D
 	};
+
+
+	/**
+	* The constructor initialising the camera.
+	* @param debugOutput Whether to print operational information.
+	* @param ref The Eds camera reference object.
+	* @param info The populated device info object. Memory handled by the camera.
+	* */
+	Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info);
+
+	/** Destructor that cleans up and frees memory, closing any connections. */
+	~Camera();
 
 	/** Returns whether the camera is availalbe for use (it could have been disconnected, etc.) */
 	bool available();
@@ -128,12 +142,6 @@ public:
 
 	/** Gets the shutter speed. Returns -1 upon failure. */
 	int shutterSpeed();
-
-	/** Gets the maximum shutter speed. Returns -1 upon failure. */
-	int maxShutterSpeed();
-
-	/** Gets the minimum shutter speed. Returns -1 upon failure. */
-	int minShutterSpeed();
 
 	/** Sets the aperture width. Returns false upon failure. */
 	bool aperture(int v);
@@ -168,7 +176,7 @@ class CameraList
 private:
 
 	/** Hidden constructor. */
-	CameraList() {}
+	CameraList(bool debugOutput);
 
 	/** A value indicating whether an instance of the class exists. */
 	static bool mExists;
@@ -185,6 +193,8 @@ private:
 	/** Sets a camera as selected. */
 	void activeCamera(Camera* cam);
 
+	bool mInformOutput;
+
 	friend class Camera;
 public:
 
@@ -194,9 +204,13 @@ public:
 
 	std::vector<Camera> cameras;
 
-	/** Creates a new instance of the class if it was not created previously. Otherwise returns null.
-	* It also attempts to initialise the SDK. If any errors are encountered, null is also returned. */
-	static CameraList* create();
+	/**
+	* Creates a new instance of the class if it was not created previously. Otherwise returns null.
+	* It also attempts to initialise the SDK. If any errors are encountered, null is also returned.
+	* @param debugOutput Determines whether non-error output will be printed through the Inform mechanism within
+	                     CameraList and its cameras.
+	* */
+	static CameraList* create(bool debugOutput);
 
 	/** Returns the current instance of the camera list in existence. */
 	static CameraList* instance();
