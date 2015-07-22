@@ -21,3 +21,5 @@ std::string ToHexString(const T t)
 	ss << std::hex << t;
 	return ss.str();
 }
+
+std::string appendNameToPath(const std::string& name, const std::string& path);

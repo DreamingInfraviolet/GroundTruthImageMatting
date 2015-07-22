@@ -9,6 +9,7 @@
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 //returns the ret parameter if the function fails, printing the given error message along with the error code.
+//Returns the error code if ret==err
 #define CHECK_EDS_ERROR(func, message, ret) {													\
 								   int err = func; 												\
 								   if(err!=EDS_ERR_OK) 											\
@@ -139,7 +140,7 @@ const PropertyMap CameraList::shutterSpeedMappings =
 	{ 0x10, "30\"" },
 	{ 0x13, "25\"" },
 	{ 0x14, "20\"" },
-	{ 0x15, "20\"" },
+	{ 0x15, "20\" (1/3)" },
 	{ 0x18, "15\"" },
 	{ 0x1B, "13\"" },
 	{ 0x5D, "1/25" },
@@ -150,9 +151,9 @@ const PropertyMap CameraList::shutterSpeedMappings =
 	{ 0x68, "1/60" },
 	{ 0x6B, "1/80" },
 	{ 0x1C, "10\"" },
-	{ 0x1D, "10\"" },
+	{ 0x1D, "10\" (1/3)" },
 	{ 0x20, "8\"" },
-	{ 0x23, "6\"" },
+	{ 0x23, "6\" (1/3)" },
 	{ 0x24, "6\"" },
 	{ 0x25, "5\"" },
 	{ 0x28, "4\"" },
@@ -170,17 +171,17 @@ const PropertyMap CameraList::shutterSpeedMappings =
 	{ 0x40, "0\"5" },
 	{ 0x43, "0\"4" },
 	{ 0x44, "0\"3" },
-	{ 0x45, "0\"3" },
+	{ 0x45, "0\"3 (1/3)" },
 	{ 0x48, "1/4" },
 	{ 0x4B, "1/5" },
 	{ 0x4C, "1/6" },
-	{ 0x4D, "1/6" },
+	{ 0x4D, "1/6 (1/3)" },
 	{ 0x50, "1/8" },
-	{ 0x53, "1/10" },
+	{ 0x53, "1/10 (1/3)" },
 	{ 0x54, "1/10" },
 	{ 0x55, "1/13" },
 	{ 0x58, "1/15" },
-	{ 0x5B, "1/20" },
+	{ 0x5B, "1/20 (1/3)" },
 	{ 0x5C, "1/20" },
 	{ 0x6C, "1/90" },
 	{ 0x6D, "1/100" },
@@ -261,6 +262,7 @@ CameraList::~CameraList()
 
 	cameras.clear();
 	mInstance = nullptr;
+	mExists = false;
 
 	WARN_EDS_ERROR(EdsTerminateSDK(), "Error shutting down the SDK");
 }
@@ -308,7 +310,6 @@ int CameraList::ennumerate()
 		cameras.emplace_back(mInformOutput, camera, info);
 
 		//Register object event handler for camera
-		ObjectCallbackInContext* context;
 		CHECK_EDS_ERROR(EdsSetObjectEventHandler(
 			camera, kEdsObjectEvent_All,
 			&Camera::objectCallback,
@@ -524,17 +525,28 @@ int Camera::aperture()
 }
 
 bool Camera::shoot(const std::string& name, const std::string& directory)
-{
+{	
+	CCINFORM(std::string("Taking picture to \"") + directory + "\\" + name + "\" for " + this->name());
+
+	//While we are having message loop issues, just return false for now if not ready:
+	if (!*mReadyToTakePhoto)
+	{
+		Warning("Camera not ready to shoot");
+		return false;
+	}
+
+
+
+	/*
 	//Wait while pictures are being processed:
 	std::unique_lock<std::mutex> lock(*mMutex);
 	while (!*mReadyToTakePhoto)
 	{
-		CCINFORM(std::string("Camera waiting before taking shot ") + name);
+		CCINFORM(std::string("Camera waiting for result of shoot() ") + name);
 		mConditionVariable->wait(lock);
 	}
-	
-	
-	CCINFORM(std::string("Taking picture to \"") + directory + "\\" + name + "\" for " + this->name());
+	*/
+
 
 	//Set shooting mode:
 	EdsInt32 shootingMode = 0;
@@ -567,6 +579,10 @@ bool Camera::shoot(const std::string& name, const std::string& directory)
 	}
 	EdsSetCapacity(mCameraRef, capacity);
 
+	//Set camera class properties to be used by the callback:
+	mCurrentSaveDirectory = directory;
+	mCurrentSaveName = name;
+
 	//Send shoot command and force further shoot commands to wait
 	*mReadyToTakePhoto = false;
 	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_TakePicture, 0), "Could not capture an image", false);
@@ -592,11 +608,40 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 	{
 		//Note: Other switch cases may not be taking a photo
 
-		Inform("Receiving camera download event.");
+		//If ready to take another photo, something is wrong . . . Most likely a photo from the previous camera session.
+		if (*camera->mReadyToTakePhoto)
+		{
+			//Note: This returns the error code
+			CHECK_EDS_ERROR(EdsDownloadCancel(inRef), "Could not cancel download request ", err);
+			return EDS_ERR_OK;
+		}
+
+		std::string path = appendNameToPath(camera->mCurrentSaveName, camera->mCurrentSaveDirectory);
+		Inform("Receiving camera download event for " + path);
+
+		//Prepare download
+		
+		//Get info on camera memory directory
+		EdsDirectoryItemInfo dii;
+		CHECK_EDS_ERROR(EdsGetDirectoryItemInfo(inRef, &dii), "Could not retrieve directory item info", err);
+		
+		//Create stream
+		EdsStreamRef stream = nullptr;
+		CHECK_EDS_ERROR(EdsCreateFileStream(path.c_str(),
+			kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, &stream), "Failed to create file stream", err);
+
+		//Download
+		CHECK_EDS_ERROR(EdsDownload(inRef, dii.size, stream), "Could not download image", err);
+		CHECK_EDS_ERROR(EdsDownloadComplete(inRef), "Could not send download success confirmation", err);
+
+		//Release stream
+		EdsRelease(stream);
 		
 		//Notify camera that it can take photos again, and notify a waiting thread, if any.
-		camera->mAvailable = true;
+		*camera->mReadyToTakePhoto = true;
 		camera->mConditionVariable->notify_one();
+
+		Inform("Download complete");
 	}
 	break;
 	default:

@@ -22,6 +22,7 @@ private:
 	//General purpose variables
 	EdsCameraRef mCameraRef = nullptr;
 	EdsDeviceInfo* mDeviceInfo;
+	std::string mCurrentSaveDirectory, mCurrentSaveName;
 	bool mAvailable;
 	bool mInformOutput;
 
@@ -104,7 +105,7 @@ public:
 	* Each event spawns a new thread to handle the callback.
 	* @param inEvent Indicates the event type.
 	* @param inRef a reference to the object created by the event.
-	* @param inContext A pointer to the object passed in when registering the callback. In this case, ObjectCallbackInContext*.
+	* @param inContext A pointer to the object passed in when registering the callback. In this case, Camera*.
 	* */
 	static EdsError EDSCALLBACK objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid *inContext);
 };
@@ -146,15 +147,6 @@ private:
 
 	unsigned long long mSessionID;
 	bool mInformOutput;
-
-	/**
-	* The struct passed to inContext for the objectCallback.
-	* */
-	struct ObjectCallbackInContext
-	{
-		unsigned long long cameraListSessionID;
-		Camera* camera;
-	};
 
 	friend class Camera;
 public:

@@ -6,9 +6,11 @@
 
 //Temporary
 #include <Windows.h>
+#include <thread>
 
 int main(int argc, char** argv)
 {
+
 	std::auto_ptr<CameraList> list(CameraList::create(true));
 
 	if (list.get() == nullptr)
@@ -30,54 +32,20 @@ int main(int argc, char** argv)
 		Camera& cam = list->cameras[0];
 		cam.select();
 
-		/*
-		auto iso = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::ISO);
-		std::cout << "Found " << iso.size() << " iso values: ";
-		for (auto i : iso)
-			std::cout << CameraList::isoMappings[i] << " ";
-		std::cout << "\n\n\n";
+		cam.shoot("shot.cr2", "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured");
 
-		auto ape = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::Aperture);
-		std::cout << "Found " << ape.size() << " aperture values: ";
-		for (auto i : ape)
-			std::cout << CameraList::apertureMappings[i] << " ";
-		std::cout << "\n";
-
-		auto shu = cam.ennumeratePossibleValues(Camera::EnnumerableProperties::ShutterSpeed);
-		std::cout << "Found " << shu.size() << " shutter speed values: ";
-		for (auto i : shu)
-			std::cout << CameraList::shutterSpeedMappings[i] << " ";
-		std::cout << "\n";
-		*/
-
-		/*
-		Inform("Testing iso.");
-		cam.iso();
-		cam.iso(0x00000055);
-		cam.iso();
-
-		Inform("Testing aperture.");
-		cam.aperture();
-		cam.aperture(0x2D);
-		cam.aperture();
-
-		Inform("Testing shutter speed.");
-		cam.shutterSpeed();
-		cam.shutterSpeed(0x38);
-		cam.shutterSpeed();
-		*/
-
-		//Temporary message loop needed to receive camera events
-		MSG Msg;
-		while (GetMessage(&Msg, NULL, 0, 0) > 0)
+		while (true)
 		{
-			TranslateMessage(&Msg);
-			DispatchMessage(&Msg);
-
-			cam.shoot("shot.raw", "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured");
+			MSG Msg;
+			while (PeekMessage(&Msg,NULL,0,0,1))
+			{
+				TranslateMessage(&Msg);
+				DispatchMessage(&Msg);
+			}
 		}
 
 		cam.deselect();
+
 	}
 
 	return 0;
