@@ -32,7 +32,7 @@ int main(int argc, char** argv)
 		Camera& cam = list->cameras[0];
 		cam.select();
 
-		cam.shoot("shot.cr2", "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured");
+		cam.shoot("shot", "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured", Camera::Format::BMP | Camera::Format::RAW);
 
 		while (true)
 		{

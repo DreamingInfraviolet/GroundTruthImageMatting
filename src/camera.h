@@ -2,10 +2,12 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include <mutex>
-#include <condition_variable>
 #include "EDSDKTypes.h"
 #include "propertymap.h"
+#include "image.h"
+
+
+//To do: When an error occurs, some resources are not freed. Maybe write a helper class to delete things upon exit.
 
 /**
 * this class serves as an interface to a camera object that is connected to the computer.
@@ -15,18 +17,26 @@ class Camera
 private:
 	//Used to manage event threads, etc.
 	//Declared as pointers to allow storage in a vector due to moving being deleted otherwise.
-	std::mutex* mMutex;
 	std::atomic<bool>* mReadyToTakePhoto;
-	std::condition_variable* mConditionVariable;
 
 	//General purpose variables
 	EdsCameraRef mCameraRef = nullptr;
-	EdsDeviceInfo* mDeviceInfo;
-	std::string mCurrentSaveDirectory, mCurrentSaveName;
-	bool mAvailable;
-	bool mInformOutput;
+	EdsDeviceInfo* mDeviceInfo = nullptr;
+	int shotsFired = 0;
+	ImageRaw mLastImage;
+	bool mInformOutput = true;
 
 	friend class CameraList;
+
+
+	/**
+	* A callback that receives object events from the camera.
+	* Each event spawns a new thread to handle the callback.
+	* @param inEvent Indicates the event type.
+	* @param inRef a reference to the object created by the event.
+	* @param inContext A pointer to the object passed in when registering the callback. In this case, Camera*.
+	* */
+	static EdsError EDSCALLBACK objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid *inContext);
 
 public:
 
@@ -43,7 +53,10 @@ public:
 	/** Destructor that cleans up and frees memory, closing any connections. */
 	~Camera();
 
-	/** Returns whether the camera is availalbe for general use (it could have been disconnected, etc.) */
+	/**
+	* Returns whether the camera is availalbe for general use (it could have been disconnected, etc.)
+	* Do not use this to check if another picture can be taken.
+	*/
 	bool available();
 
 	/** Returns whether the camera is ready to take the next picture. */
@@ -90,24 +103,27 @@ public:
 	int aperture();
 
 	/**Takes a picture and stores it in the directory with the given name.
-	* If the previous picture is still not saved, the function will block until that is done.
-	* @param Name The name of the image file to be saved.
+	* The ease of use was crippled due to limitations of the SDK.
+	* If using in Windows, ensure that the message loop gets to run afterwards to be able to finish taking the image.
+	* If the previous picture is still not saved, the function will fail.
+	* @param Name The name of the image file to be saved without the extension.
 	* @param Directory The path where the file should be saved. The method will try to create the directory if it does not exist.
-	* @return Sucess/Failure of the operation.
+	* @param Format the formats to save (use the Format flags)
+	* @return A success value.
 	* */
-	bool shoot(const std::string& name, const std::string& directory);
+	bool shoot();
+
+	/**
+	* Retrieves the last image taken by the camera.
+	* If an error occured, the image is marked as invalid.
+	* Upon returning the image is destroyed, so it can only be called once.
+	* Call if readyToShoot() is true.
+	* */
+	ImageRaw retrieveLastImage();
 
 	/** Resets the shutdown timer of the camera, keeping it awake for longer without powering off. */
 	bool resetShutdownTimer();
 
-	/**
-	* A callback that receives object events from the camera.
-	* Each event spawns a new thread to handle the callback.
-	* @param inEvent Indicates the event type.
-	* @param inRef a reference to the object created by the event.
-	* @param inContext A pointer to the object passed in when registering the callback. In this case, Camera*.
-	* */
-	static EdsError EDSCALLBACK objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid *inContext);
 };
 
 

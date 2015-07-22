@@ -1,6 +1,8 @@
 #include <cassert>
 #include <memory>
 #include <ctime>
+#include <cstdio>
+#include "SOIL.h"
 #include "EDSDK.h"
 #include "camera.h"
 #include "io.h"
@@ -330,11 +332,6 @@ Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
 	mDeviceInfo = info;
 	mCameraRef = ref;
 
-	//Initialise pointers
-	mMutex = new std::mutex();
-	mReadyToTakePhoto = new std::atomic<bool>;
-	mConditionVariable = new std::condition_variable;
-
 
 	CCINFORM(std::string("Found Camera ") + name());
 }
@@ -343,12 +340,8 @@ Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
 Camera::~Camera()
 {
 	deselect();
-	if (mMutex)
-		delete mMutex;
 	if (mReadyToTakePhoto)
 		delete mReadyToTakePhoto;
-	if (mConditionVariable)
-		delete mConditionVariable;
 	if (mDeviceInfo)
 		delete mDeviceInfo;
 	EdsRelease(mCameraRef);
@@ -524,29 +517,16 @@ int Camera::aperture()
 	return v;
 }
 
-bool Camera::shoot(const std::string& name, const std::string& directory)
+bool Camera::shoot()
 {	
-	CCINFORM(std::string("Taking picture to \"") + directory + "\\" + name + "\" for " + this->name());
+	CCINFORM("Shooting picture...");
 
 	//While we are having message loop issues, just return false for now if not ready:
 	if (!*mReadyToTakePhoto)
 	{
-		Warning("Camera not ready to shoot");
+		Error("Camera not ready to shoot");
 		return false;
 	}
-
-
-
-	/*
-	//Wait while pictures are being processed:
-	std::unique_lock<std::mutex> lock(*mMutex);
-	while (!*mReadyToTakePhoto)
-	{
-		CCINFORM(std::string("Camera waiting for result of shoot() ") + name);
-		mConditionVariable->wait(lock);
-	}
-	*/
-
 
 	//Set shooting mode:
 	EdsInt32 shootingMode = 0;
@@ -563,6 +543,7 @@ bool Camera::shoot(const std::string& name, const std::string& directory)
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_SaveTo, 0, sizeof(EdsInt32), &saveToComputer),
 		"Could not set camera save mode.", false);
 
+	/* //Is this needed? Disabling for now.
 	//Set space remaining on computer
 	EdsCapacity capacity;
 	capacity.bytesPerSector = 0;
@@ -578,10 +559,8 @@ bool Camera::shoot(const std::string& name, const std::string& directory)
 		capacity.reset = 1;
 	}
 	EdsSetCapacity(mCameraRef, capacity);
+	*/
 
-	//Set camera class properties to be used by the callback:
-	mCurrentSaveDirectory = directory;
-	mCurrentSaveName = name;
 
 	//Send shoot command and force further shoot commands to wait
 	*mReadyToTakePhoto = false;
@@ -590,6 +569,13 @@ bool Camera::shoot(const std::string& name, const std::string& directory)
 	//Now the user must wait for the object callback to download the image.
 
 	return true;
+}
+
+ImageRaw Camera::retrieveLastImage()
+{
+	ImageRaw img = std::move(mLastImage);
+	mLastImage.fail();
+	return img;
 }
 
 bool Camera::resetShutdownTimer()
@@ -616,36 +602,43 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 			return EDS_ERR_OK;
 		}
 
-		std::string path = appendNameToPath(camera->mCurrentSaveName, camera->mCurrentSaveDirectory);
-		Inform("Receiving camera download event for " + path);
+		Inform("Receiving camera download event ");
 
-		//Prepare download
-		
 		//Get info on camera memory directory
 		EdsDirectoryItemInfo dii;
 		CHECK_EDS_ERROR(EdsGetDirectoryItemInfo(inRef, &dii), "Could not retrieve directory item info", err);
-		
+
 		//Create stream
 		EdsStreamRef stream = nullptr;
-		CHECK_EDS_ERROR(EdsCreateFileStream(path.c_str(),
-			kEdsFileCreateDisposition_CreateAlways, kEdsAccess_ReadWrite, &stream), "Failed to create file stream", err);
+		CHECK_EDS_ERROR(EdsCreateMemoryStream(dii.size, &stream), "Failed to create image stream", err);
 
 		//Download
 		CHECK_EDS_ERROR(EdsDownload(inRef, dii.size, stream), "Could not download image", err);
 		CHECK_EDS_ERROR(EdsDownloadComplete(inRef), "Could not send download success confirmation", err);
 
-		//Release stream
+
+		//Get image and information about it
+		EdsImageRef image;
+		CHECK_EDS_ERROR(EdsCreateImageRef(stream, &image), "Could not retrieve image ref", err);
+
+		EdsImageInfo imageInfo;
+		CHECK_EDS_ERROR(EdsGetImageInfo(image, kEdsImageSrc_RAWFullView, &imageInfo), "Could not retrieve image info", err);
+
+		void* imageData;
+		CHECK_EDS_ERROR(EdsGetPointer(stream, &imageData), "Could not retrieve the image pointer", err);
+
+		ImageRaw img = ImageRaw(imageData, dii.size, imageInfo.width, imageInfo.height);
+		camera->mLastImage = std::move(img);
+
 		EdsRelease(stream);
+		EdsRelease(image);
 		
 		//Notify camera that it can take photos again, and notify a waiting thread, if any.
 		*camera->mReadyToTakePhoto = true;
-		camera->mConditionVariable->notify_one();
 
-		Inform("Download complete");
+		Inform("Done");
 	}
 	break;
-	default:
-		Inform("Event not handled");
 	}
 
 	return EDS_ERR_OK;
