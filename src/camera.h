@@ -41,6 +41,11 @@ private:
 
 public:
 
+	//Mappings between property IDs and their textual counterparts.
+	static const PropertyMap isoMappings;
+	static const PropertyMap apertureMappings;
+	static const PropertyMap shutterSpeedMappings;
+
 	enum class EnnumerableProperties {ShutterSpeed, ISO, Aperture};
 
 	/**
@@ -168,10 +173,7 @@ private:
 	friend class Camera;
 public:
 
-	//Mappings between property IDs and their textual counterparts.
-	static const PropertyMap isoMappings;
-	static const PropertyMap apertureMappings;
-	static const PropertyMap shutterSpeedMappings;
+
 
 
 	/** Performs shutdown operations. */

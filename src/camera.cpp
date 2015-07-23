@@ -22,7 +22,7 @@ unsigned long long CameraList::camerasCreationRecord = 0;
 
 
 //Definition of property mappings
-const PropertyMap CameraList::isoMappings =
+const PropertyMap Camera::isoMappings =
 {
 	{ 0x00000028, "ISO 6" },
 	{ 0x00000030, "ISO 12" },
@@ -48,7 +48,7 @@ const PropertyMap CameraList::isoMappings =
 	{ 0xffffffff, "Invalid" }
 };
 
-const PropertyMap CameraList::apertureMappings =
+const PropertyMap Camera::apertureMappings =
 {
 	{ 0x08, "1" },
 	{ 0x0B, "1.1" },
@@ -107,7 +107,7 @@ const PropertyMap CameraList::apertureMappings =
 };
 
 
-const PropertyMap CameraList::shutterSpeedMappings =
+const PropertyMap Camera::shutterSpeedMappings =
 {
 	{ 0x0C, "Bulb" },
 	{ 0x10, "30\"" },
