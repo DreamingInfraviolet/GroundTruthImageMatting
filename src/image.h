@@ -36,10 +36,10 @@ public:
 	int width();
 
 	/** Loads an image from a path indicated by the argument. */
-	virtual bool loadFromFile(const char* file) = 0;
+	virtual bool loadFromFile(const char* path) = 0;
 
 	/** Saves the image to a path indicated by the argument. */
-	virtual bool saveToFile(const char* file) = 0;
+	virtual bool saveToFile(const char* path) = 0;
 };
 
 class ImageRGBA;
@@ -55,26 +55,38 @@ private:
 	* */
 	std::vector<unsigned char> getRawRGB();
 
+	/** Copies values into the class that can not be moved.*/
+	void copyNonMovable(const ImageRaw& img);
+
+	/**
+	* Converts an array of RGB values into an array of RGBA values, with the given alpha.
+	* */
+	std::vector<unsigned char> ImageRaw::rgbToRgba(const std::vector<unsigned char>& rgb, unsigned char alpha);
+
 	EdsImageRef mImageRef = nullptr;
+
 
 public:
 	/** A trivial constructor. */
 	ImageRaw();
 
-	/** Loads an image from the inputted file path. */
-	ImageRaw(const std::string& path);
-
 	/** Creates the image from memory, copying from the inputted source. */
 	ImageRaw(EdsImageRef imageRef, const void* data, size_t dataSize, int width, int height);
 
-	/** Move constructor. */
+	/** Destructor. Class clear() */
+	~ImageRaw();
+
+	/**Move constructor to help performance */
 	ImageRaw(ImageRaw&& img);
 
 	/** Copy constructor. */
 	ImageRaw(const ImageRaw& img);
 
-	/** Destructor. Class clear() */
-	~ImageRaw();
+	/** Move operator. */
+	ImageRaw& operator = (ImageRaw&& img);
+
+	/** Copy operator. */
+	ImageRaw& operator = (ImageRaw& img);
 
 	virtual void clear() override;
 
@@ -84,11 +96,11 @@ public:
 	* */
 	ImageRGBA asRGBA();
 
-	/** Overriden loading */
-	virtual bool loadFromFile(const char* file) override;
+	/** Loading is unsupported. Do not use this! */
+	virtual bool loadFromFile(const char* path) override;
 
 	/** Overriden saving. */
-	virtual bool saveToFile(const char* file) override;
+	virtual bool saveToFile(const char* path) override;
 };
 
 /** A class to represent an RGBA RGBA image. Supports Alpha. */
@@ -98,15 +110,15 @@ public:
 	/** A trivial constructor. */
 	ImageRGBA();
 
-	/** Loads an image from the inputted file path. */
-	ImageRGBA(const std::string& path);
+	/** Loads the specified image. */
+	ImageRGBA::ImageRGBA(const char* path);
 
 	/** Creates the image from memory, copying from the inputted source. */
 	ImageRGBA(const void* data, size_t dataSize, int width, int height);
 
-	/** Overriden loading */
-	virtual bool loadFromFile(const char* file) override;
+	/** Loads the specified image. */
+	virtual bool loadFromFile(const char* path) override;
 
-	/** Overriden saving. */
-	virtual bool saveToFile(const char* file) override;
+	/** Saves the image as TGA. */
+	virtual bool saveToFile(const char* path) override;
 };

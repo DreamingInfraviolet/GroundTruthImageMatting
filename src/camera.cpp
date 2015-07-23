@@ -2,7 +2,6 @@
 #include <memory>
 #include <ctime>
 #include <cstdio>
-#include "SOIL.h"
 #include "EDSDK.h"
 #include "camera.h"
 #include "io.h"
@@ -10,36 +9,8 @@
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//returns the ret parameter if the function fails, printing the given error message along with the error code.
-//Returns the error code if ret==err
-#define CHECK_EDS_ERROR(func, message, ret) {													\
-								   int err = func; 												\
-								   if(err!=EDS_ERR_OK) 											\
-								   	{															\
-								   		Error(std::string("Camera error in ") + 				\
-								   		ToString(__FILE__) + " on line " +						\
-								   		ToString(__LINE__) + ": " + message + 					\
-								   		" | Error Code " + ToString(err));  					\
-								   		return ret;												\
-								   	}															\
-							   }
-
-
-//Warns if an error has occured without returning.
-#define WARN_EDS_ERROR(func, message)   {														\
-								   int err = func;	 											\
-								   if(err!=EDS_ERR_OK) 											\
-								   		Warning(std::string("Camera error in ") + 				\
-								   		ToString(__FILE__) + " on line " +						\
-								   		ToString(__LINE__) + ": " + message + 					\
-								   		" | Error Code " + ToString(err));  					\
-							    }
-
-
 //Conditional camera inform: Inform(msg) is called if mInformOutput is true.
 #define CCINFORM(msg) {if(mInformOutput) Inform(msg);}
-
-
 
 
 
@@ -332,6 +303,8 @@ Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
 	mDeviceInfo = info;
 	mCameraRef = ref;
 
+	mReadyToTakePhoto = new std::atomic<bool>();
+	*mReadyToTakePhoto = true;
 
 	CCINFORM(std::string("Found Camera ") + name());
 }
@@ -627,16 +600,15 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 		void* imageData;
 		CHECK_EDS_ERROR(EdsGetPointer(stream, &imageData), "Could not retrieve the image pointer", err);
 
-		ImageRaw img = ImageRaw(imageData, dii.size, imageInfo.width, imageInfo.height);
+		ImageRaw img = ImageRaw(image, imageData, dii.size, imageInfo.width, imageInfo.height);
 		camera->mLastImage = std::move(img);
 
 		EdsRelease(stream);
-		EdsRelease(image);
 		
 		//Notify camera that it can take photos again, and notify a waiting thread, if any.
 		*camera->mReadyToTakePhoto = true;
 
-		Inform("Done");
+		Inform("Image ready");
 	}
 	break;
 	}

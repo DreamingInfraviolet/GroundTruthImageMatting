@@ -8,6 +8,7 @@
 
 
 //To do: When an error occurs, some resources are not freed. Maybe write a helper class to delete things upon exit.
+//Also, figure out image move constructor.
 
 /**
 * this class serves as an interface to a camera object that is connected to the computer.

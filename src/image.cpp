@@ -3,31 +3,7 @@
 #include <fstream>
 #include "EDSDK.h"
 #include "io.h"
-
-//returns the ret parameter if the function fails, printing the given error message along with the error code.
-//Returns the error code if ret==err
-#define CHECK_EDS_ERROR(func, message, ret) {													\
-								   int err = func; 												\
-								   if(err!=EDS_ERR_OK) 											\
-								   	{															\
-								   		Error(std::string("Camera error in ") + 				\
-								   		ToString(__FILE__) + " on line " +						\
-								   		ToString(__LINE__) + ": " + message + 					\
-								   		" | Error Code " + ToString(err));  					\
-								   		return ret;												\
-								   	}															\
-							   }
-
-
-//Warns if an error has occured without returning.
-#define WARN_EDS_ERROR(func, message)   {														\
-								   int err = func;	 											\
-								   if(err!=EDS_ERR_OK) 											\
-								   		Warning(std::string("Camera error in ") + 				\
-								   		ToString(__FILE__) + " on line " +						\
-								   		ToString(__LINE__) + ": " + message + 					\
-								   		" | Error Code " + ToString(err));  					\
-							    }
+#include "SOIL.h"
 
 
 
@@ -62,13 +38,16 @@ int Image::width()
 	return mWidth;
 }
 
-///Left off here
+void ImageRaw::copyNonMovable(const ImageRaw & img)
+{
+	mFailed = img.mFailed;
+	mWidth = img.mWidth;
+	mHeight = img.mHeight;
+}
+
 
 std::vector<unsigned char> ImageRaw::getRawRGB()
 {
-	return std::vector<unsigned char>();
-
-
 	EdsImageInfo imageInfo;
 	CHECK_EDS_ERROR(EdsGetImageInfo(mImageRef, kEdsImageSrc_RAWFullView, &imageInfo), "Could not retrieve image info", {});
 
@@ -86,66 +65,99 @@ std::vector<unsigned char> ImageRaw::getRawRGB()
 
 	void* imageData;
 	CHECK_EDS_ERROR(EdsGetPointer(rgbStream, &imageData), "Could not retrieve the image pointer", {});
+	
 
-	/*
-	std::string bmpPath = appendNameToPath(camera->mLastSaveName + ".bmp", camera->mLastSaveDirectory);
+	std::vector<unsigned char> out;
+	out.resize(3 * imageInfo.width*imageInfo.height);
+	memcpy(&out[0], imageData, out.size());
 
-	if (SOIL_save_image(bmpPath.c_str(), SOIL_SAVE_TYPE_BMP,
-		size.width, size.height, 3, (const unsigned char*)imageData) == 0)
+	EdsUInt32 expectedImageSize;
+	EdsGetLength(rgbStream, &expectedImageSize);
+	assert(expectedImageSize == out.size());
+
+	EdsRelease(rgbStream);
+
+	return out;
+}
+
+std::vector<unsigned char> ImageRaw::rgbToRgba(const std::vector<unsigned char>& rgb, unsigned char alpha)
+{
+	if (rgb.size() % 3 != 0)
 	{
-		Error("Could not save BMP image.");
-		return false;
+		Warning("Can not convert RGB to RGBA: RGB array not divisibly by 3.");
+		return{};
 	}
-	*/
+
+	if (rgb.size() == 0)
+		return{};
+
+	std::vector<unsigned char> out;
+	out.resize(rgb.size() / 3 * 4);
+
+
+	//Adapted from http://stackoverflow.com/a/7069317
+	const unsigned char* rgbptr = &rgb[0];
+	unsigned char* rgbaptr = &out[0];
+	unsigned count = rgb.size()/3;
+
+	for (unsigned i = count; --i; rgbaptr += 4, rgbptr += 3)
+		*(uint32_t*)(void*)rgbaptr = *(const uint32_t*)(const void*)rgbptr;
+	for (unsigned j = 0; j<3; ++j)
+		rgbaptr[j] = rgb[j];
+
+	//Set alpha
+	for (unsigned i = 3; i < out.size(); i += 4)
+		out[i] = alpha;
+
+	return out;
 }
 
 ImageRaw::ImageRaw()
 {
 }
 
-ImageRaw::ImageRaw(const std::string & path)
-{
-	//Open file
-	std::fstream stream(path, std::ios::in | std::ios::binary | std::ios::ate);
-	if (stream.fail())
-	{
-		mFailed = true;
-		return;
-	}
-
-	//Read data
-	mData.resize(stream.tellg());
-	stream.seekg(0);
-	stream.read((char*)&mData[0], mData.size());
-}
-
 ImageRaw::ImageRaw(EdsImageRef imageRef, const void * data, size_t dataSize, int width, int height)
 {
+	mImageRef = imageRef;
+	mWidth = width;
+	mHeight = height;
 	mData.resize(dataSize);
 	memcpy(&mData[0], data, dataSize);
-}
-
-ImageRaw::ImageRaw(ImageRaw && img)
-{
-	mData.swap(img.mData);
-	mHeight = img.mHeight;
-	mWidth = img.mWidth;
-	mFailed = img.mFailed;
-	mImageRef = mImageRef;
-}
-
-ImageRaw::ImageRaw(const ImageRaw & img)
-{
-	mData = img.mData;
-	mHeight = img.mHeight;
-	mWidth = img.mWidth;
-	mFailed = img.mFailed;
-	mImageRef = mImageRef;
 }
 
 ImageRaw::~ImageRaw()
 {
 	clear();
+}
+
+ImageRaw::ImageRaw(ImageRaw&& img)
+{
+	mImageRef = img.mImageRef;
+	img.mImageRef = nullptr;
+	mData.swap(img.mData);
+	copyNonMovable(img);
+}
+
+ImageRaw::ImageRaw(const ImageRaw& img)
+{
+	mData = img.mData;
+	copyNonMovable(img);
+}
+
+ImageRaw& ImageRaw::operator = (ImageRaw&& img)
+{
+	mImageRef = img.mImageRef;
+	img.mImageRef = nullptr;
+	mData.swap(img.mData);
+	copyNonMovable(img);
+	return *this;
+}
+
+ImageRaw& ImageRaw::operator = (ImageRaw& img)
+{
+	mData = img.mData;
+	copyNonMovable(img);
+	return *this;
 }
 
 void ImageRaw::clear()
@@ -157,47 +169,71 @@ void ImageRaw::clear()
 
 ImageRGBA ImageRaw::asRGBA()
 {
-	return ImageRGBA();
+	std::vector<unsigned char> rgba = rgbToRgba(getRawRGB(), 255);
+	if (rgba.size() == 0)
+	{
+		ImageRGBA out;
+		out.fail();
+		return out;
+	}
+	return ImageRGBA (&rgba[0], rgba.size(), mWidth, mHeight);
 }
 
-bool ImageRaw::loadFromFile(const char * file)
+bool ImageRaw::loadFromFile(const char * path)
 {
+	Error("Loading RAW images is unsupported.");
 	return false;
 }
 
-bool ImageRaw::saveToFile(const char * file)
+bool ImageRaw::saveToFile(const char * path)
 {
-	return false;
+	std::fstream stream(path, std::ios::out | std::ios::binary);
+	if (stream.fail())
+	{
+		Error(std::string("Could not save image ") + path);
+		return false;
+	}
+
+	stream.write((const char*)&mData[0], mData.size());
+
+	return true;
 }
 
 ImageRGBA::ImageRGBA()
 {
 }
 
-ImageRGBA::ImageRGBA(const std::string & path)
+ImageRGBA::ImageRGBA(const char* path)
 {
+	if(!loadFromFile(path))
+		mFailed = true;
 }
 
 ImageRGBA::ImageRGBA(const void * data, size_t dataSize, int width, int height)
 {
+	mData.resize(dataSize);
+	mWidth = width;
+	mHeight = height;
+	memcpy(&mData[0], data, dataSize);
 }
 
-bool ImageRGBA::loadFromFile(const char * file)
+bool ImageRGBA::loadFromFile(const char * path)
 {
-	return false;
+	if (SOIL_load_image(path, &mWidth, &mHeight, nullptr, SOIL_LOAD_RGBA) == 0)
+	{
+		Error(std::string("Could not load ") + path);
+		return false;
+	}
+	return true;
 }
 
-bool ImageRGBA::saveToFile(const char * file)
+bool ImageRGBA::saveToFile(const char * path)
 {
-	return false;
-}
+	if (SOIL_save_image(path, SOIL_SAVE_TYPE_TGA, mWidth, mHeight, 4, &mData[0]) == 0)
+	{
+		Error(std::string("Could not save ") + path);
+		return false;
+	}
 
-bool ImageRGBA::loadFromFile(const char * file)
-{
-	return false;
-}
-
-bool ImageRGBA::saveToFile(const char * file)
-{
-	return false;
+	return true;
 }
