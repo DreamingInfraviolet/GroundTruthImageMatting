@@ -11,6 +11,12 @@ void EventSystem::send(const std::shared_ptr<Event>& e)
 	mBlockCondition.notify_one();
 }
 
+void EventSystem::send(const std::initializer_list<std::shared_ptr<Event>>& list)
+{
+	for (auto it = list.begin(); it != list.end(); ++it)
+		send(*it);
+}
+
 std::shared_ptr<Event> EventSystem::poll()
 {
 	std::unique_lock<std::mutex> guard(mMutex);

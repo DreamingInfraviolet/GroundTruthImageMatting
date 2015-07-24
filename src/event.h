@@ -261,6 +261,9 @@ public:
 	/** Sends an event to the action thread. */
 	void send(const std::shared_ptr<Event>& e);
 
+	/** Sends all of the given inputs. */
+	void send(const std::initializer_list<std::shared_ptr<Event> >& list);
+
 	/** pops the next list off the queue and presents it.
 	* If there is nothing to poll, the method blocks the thread until there is.
 	* */

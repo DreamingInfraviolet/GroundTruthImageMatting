@@ -31,24 +31,24 @@ bool Window::initialise()
 	mActionThreadReturn = std::async(std::launch::async, ActionThread, &mEventSystem);
 
 	//Request information about the camera
-	std::shared_ptr<EnnumerateEvent> isoEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Iso));
-	std::shared_ptr<EnnumerateEvent> apertureEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Aperture));
-	std::shared_ptr<EnnumerateEvent> shutterEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Shutter));
+	std::shared_ptr<EnnumerateEvent> isoEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Iso));
+	std::shared_ptr<EnnumerateEvent> apertureEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Aperture));
+	std::shared_ptr<EnnumerateEvent> shutterEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Shutter));
 
-	std::shared_ptr<GetEvent> currentIsoEvent (new GetEvent(GetEvent::GetType::Iso));
-	std::shared_ptr<GetEvent> currentApertureEvent (new GetEvent(GetEvent::GetType::Aperture));
-	std::shared_ptr<GetEvent> currentShutterEvent (new GetEvent(GetEvent::GetType::Shutter));
+	std::shared_ptr<GetEvent> currentIsoEvent(new GetEvent(GetEvent::GetType::Iso));
+	std::shared_ptr<GetEvent> currentApertureEvent(new GetEvent(GetEvent::GetType::Aperture));
+	std::shared_ptr<GetEvent> currentShutterEvent(new GetEvent(GetEvent::GetType::Shutter));
 
-	std::shared_ptr<EnnumerateCameraEvent> availableCamerasEvent (new EnnumerateCameraEvent());
+	std::shared_ptr<EnnumerateCameraEvent> availableCamerasEvent(new EnnumerateCameraEvent());
 
 	//Send data requests
-	mEventSystem.send(isoEnnumerationEvent);
-	mEventSystem.send(apertureEnnumerationEvent);
-	mEventSystem.send(shutterEnnumerationEvent);
-	mEventSystem.send(currentIsoEvent);
-	mEventSystem.send(currentApertureEvent);
-	mEventSystem.send(currentShutterEvent);
-	mEventSystem.send(availableCamerasEvent);
+	mEventSystem.send({ isoEnnumerationEvent,
+					   apertureEnnumerationEvent,
+					   shutterEnnumerationEvent,
+					   currentIsoEvent,
+					   currentApertureEvent,
+					   currentShutterEvent,
+					   availableCamerasEvent });
 
 	//Set up GUI
 	using namespace nana;
@@ -100,14 +100,22 @@ bool Window::initialise()
 		mCameraBox.push_back(nana::charset(it->second, nana::unicode::utf8));
 	}
 
-	combox mApertureBox;
-	spinbox mTimerSpinbox;
-
-	checkbox mSaveBmpCheckbox;
-	checkbox mSaveRawCheckbox;
 
 
-	mMainPlace.div("");
+	mMainPlace.div("<vertical  <weight=10% margin=10 ISO_CONTROL> "
+					"<weight=10% margin=10 APERTURE_CONTROL> "
+					"<weight=10% margin=10 SHUTTER_CONTROL> "
+					"<weight=60% margin=10 COLOUR_BOX > "
+					"<weight=10% margin=10 COLOUR_CONTROL> "
+					" ><RIGHT>");
+	mMainPlace["ISO_CONTROL"] << mIsoLabel << mIsoBox;
+	mMainPlace["APERTURE_CONTROL"] << mApertureLabel << mApertureBox;
+	mMainPlace["SHUTTER_CONTROL"] << mShutterLabel << mShutterBox;
+	mMainPlace["COLOUR_BOX"] << mColours;
+	mMainPlace["COLOUR_CONTROL"] << mAddColourButton;
+	mMainPlace["COLOUR_CONTROL"] << mRemoveColourButton;
+
+	mMainPlace["RIGHT"] << mGoButton;
 
 	mMainPlace.collocate();
 
