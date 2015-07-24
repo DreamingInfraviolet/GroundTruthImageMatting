@@ -1,5 +1,4 @@
 #pragma once
-#include "camera.h"
 #include <nana/gui/wvl.hpp> 
 #include <nana/gui/widgets/spinbox.hpp>
 #include <nana/gui/widgets/listbox.hpp>
@@ -8,6 +7,11 @@
 #include <nana/gui/widgets/label.hpp>
 #include <nana/gui/widgets/button.hpp>
 #include <nana/gui/widgets/checkbox.hpp>
+
+#include <future>
+
+#include "cameraguiinfo.h"
+#include "event.h"
 
 /**
 * This class is meant to act as the main force driving the program.
@@ -21,7 +25,7 @@ enum class State {idle, startup, normal, shutdown};
 	//Define window elements:
 
 	//Camera selection
-	nana::combox mCameraSelection;
+	nana::combox mCameraBox;
 
 	//Use this for delay
 	nana::spinbox mDelaySpinbox;
@@ -57,6 +61,10 @@ enum class State {idle, startup, normal, shutdown};
 
 	nana::place mMainPlace;
 
+	EventSystem mEventSystem;
+	std::future<int> mActionThreadReturn;
+
+	std::vector<CameraGuiInfo> cameras;
 
 
 

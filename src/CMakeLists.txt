@@ -9,7 +9,6 @@ file(GLOB_RECURSE AllSrcFiles
 add_executable(
 				CameraControl # name of the executable
 			    ${AllSrcFiles}
-			    ${JuceFiles}
 			    )
 
 include_directories("${PROJECT_SOURCE_DIR}/src")

@@ -1,9 +1,12 @@
 #include "window.h"
-
+#include "actionthread.h"
+#include "io.h"
+#include "camera.h"
+#include <thread>
 Window::Window(int width, int height)
 	: nana::form(nana::API::make_center(width, height),
 				 nana::appearance(true, true, true, false, true, false, false)),
-	mCameraSelection(*this, true),
+	mCameraBox(*this, true),
 	mDelaySpinbox(*this, true),
 	mColours(*this, true),
 	mAddColourButton(*this, true),
@@ -24,9 +27,30 @@ Window::Window(int width, int height)
 
 bool Window::initialise()
 {
-	if (!initialiseCameras())
-		return false;
+	//Launch action thread
+	mActionThreadReturn = std::async(std::launch::async, ActionThread, &mEventSystem);
 
+	//Request information about the camera
+	std::shared_ptr<EnnumerateEvent> isoEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Iso));
+	std::shared_ptr<EnnumerateEvent> apertureEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Aperture));
+	std::shared_ptr<EnnumerateEvent> shutterEnnumerationEvent (new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Shutter));
+
+	std::shared_ptr<GetEvent> currentIsoEvent (new GetEvent(GetEvent::GetType::Iso));
+	std::shared_ptr<GetEvent> currentApertureEvent (new GetEvent(GetEvent::GetType::Aperture));
+	std::shared_ptr<GetEvent> currentShutterEvent (new GetEvent(GetEvent::GetType::Shutter));
+
+	std::shared_ptr<EnnumerateCameraEvent> availableCamerasEvent (new EnnumerateCameraEvent());
+
+	//Send data requests
+	mEventSystem.send(isoEnnumerationEvent);
+	mEventSystem.send(apertureEnnumerationEvent);
+	mEventSystem.send(shutterEnnumerationEvent);
+	mEventSystem.send(currentIsoEvent);
+	mEventSystem.send(currentApertureEvent);
+	mEventSystem.send(currentShutterEvent);
+	mEventSystem.send(availableCamerasEvent);
+
+	//Set up GUI
 	using namespace nana;
 
 	mColours.auto_draw(true);
@@ -48,26 +72,35 @@ bool Window::initialise()
 	mShutterLabel.caption(STR("Shutter Speed"));
 	mApertureLabel.caption(STR("Aperture"));
 
+	//Get current values
+	int currentIso = currentIsoEvent->get();
+	int currenAperture = currentApertureEvent->get();
+	int currentShutter = currentShutterEvent->get();
+
 	//Fill iso values:
-	for (auto it = Camera::isoMappings.mForwardMap.begin(); it != Camera::isoMappings.mForwardMap.end(); ++it)
-		//If a valid settinf
-		if (it->first != 0xffffffff)
-		mIsoBox.push_back(nana::charset(it->second, nana::unicode::utf8));
+	auto isoEnums = isoEnnumerationEvent.get()->get();
+	for (auto it = isoEnums.begin(); it != isoEnums.end(); ++it)
+		mIsoBox.push_back(nana::charset(Camera::isoMappings[*it], nana::unicode::utf8));
 
 	//Fill shutter values:
-	for (auto it = Camera::shutterSpeedMappings.mForwardMap.begin(); it != Camera::shutterSpeedMappings.mForwardMap.end(); ++it)
-		//If a valid settinf
-		if (it->first != 0xffffffff)
-		mShutterBox.push_back(nana::charset(it->second, nana::unicode::utf8));
+	auto shuttErenums = shutterEnnumerationEvent->get();
+	for (auto it = shuttErenums.begin(); it != shuttErenums.end(); ++it)
+		mShutterBox.push_back(nana::charset(Camera::shutterSpeedMappings[*it], nana::unicode::utf8));
 
 	//Fill aperture values:
-	for (auto it = Camera::isoMappings.mForwardMap.begin(); it != Camera::isoMappings.mForwardMap.end(); ++it)
-		//If a valid settinf
-		if (it->first != 0xffffffff)
-		mIsoBox.push_back(nana::charset(it->second, nana::unicode::utf8));
+	auto apertureEnums = apertureEnnumerationEvent->get();
+	for (auto it = apertureEnums.begin(); it != apertureEnums.end(); ++it)
+		mApertureBox.push_back(nana::charset(Camera::isoMappings[*it], nana::unicode::utf8));
+
+	//Fill camera list:
+	auto cameraMappings = availableCamerasEvent->get();
+	for (auto it = cameraMappings.mForwardMap.begin(); it != cameraMappings.mForwardMap.end(); ++it)
+	{
+		cameras.emplace_back(*it);
+		mCameraBox.push_back(nana::charset(it->second, nana::unicode::utf8));
+	}
 
 	combox mApertureBox;
-
 	spinbox mTimerSpinbox;
 
 	checkbox mSaveBmpCheckbox;
@@ -78,6 +111,7 @@ bool Window::initialise()
 
 	mMainPlace.collocate();
 
+	Inform("Done initialising window");
 	show();
 
 	return true;
@@ -105,12 +139,14 @@ Window* Window::create(int width, int height)
 
 Window::~Window()
 {
-
 }
 
 
 int Window::run()
 {
 	nana::exec();
-	return 0;
+
+	//Kill action thread and get result:
+	mEventSystem.send(std::shared_ptr<MetaEvent>(new MetaEvent(MetaEvent::MetaType::Shutdown)));
+	return mActionThreadReturn.get();
 }

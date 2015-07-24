@@ -2,6 +2,7 @@
 #include <initializer_list>
 #include <string>
 #include <map>
+#include <cassert>
 
 /**
 * The mapping between formal camera properties settable by the API and the actual human-readable values
@@ -9,29 +10,56 @@
 * To map camera property values to text,
 * To map text to camera property values.
 * Implemented using two std::maps, optimised for lookup performance.
+* Asserts false if mapping not found.
 * */
-
-class PropertyMap
+template <class LEFT, class RIGHT>
+class PropertyMapTmp
 {
 public:
-	std::map<int,std::string> mForwardMap;
-	std::map<std::string,int> mBackwardMap;
+	std::map<LEFT,RIGHT> mForwardMap;
+	std::map<RIGHT,LEFT> mBackwardMap;
+
+	/** Trivial default constructor. */
+	PropertyMapTmp() {}
 
 	/**
 	* A simple constructor initialising the map.
 	* @param list The list of pairs describing the id=>string mapping.
 	* */
-	PropertyMap(const std::initializer_list<std::pair<int, std::string> >&  list);
+	PropertyMapTmp(const std::initializer_list<std::pair<LEFT, RIGHT> >&  list)
+	{
+		for(auto pair : list)
+			push_back(pair);
+	}
+
+	/** Inserts a pair into the map. */
+	void push_back(const std::pair<LEFT, RIGHT>& pair)
+	{
+		mForwardMap.insert(pair);
+		mBackwardMap.insert(std::make_pair(pair.second, pair.first));
+	}
 
 	/**
 	* Returns the property string given the corresponding id.
-	* Returns "Not Found" if not found.
 	* */
-	std::string operator[] (const int propertyId) const;
+	RIGHT operator[] (const LEFT propertyId) const
+	{
+		auto it = mForwardMap.find(propertyId);
+		if (it == mForwardMap.end())
+			assert(false);
+		return it->second;
+	}
 
 	/**
 	* Returns the property id given the corresponding string.
-	* Returns -1 if not found.
 	* */
-	int         operator[] (const std::string& propertyStr) const;
+	LEFT         operator[] (const RIGHT& propertyStr) const
+	{
+		auto it = mBackwardMap.find(propertyStr);
+		if (it == mBackwardMap.end())
+			assert(false);
+		return it->second;
+	}
 };
+
+typedef PropertyMapTmp<int,std::string> PropertyMap;
