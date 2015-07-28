@@ -6,7 +6,7 @@ file(GLOB SOURCES
     "*.cpp"
 )
 
-set(HEADERS actionthread.h
+set(HEADERS
 			camera.h
 			colour.h
 			compatabilitylayer.h

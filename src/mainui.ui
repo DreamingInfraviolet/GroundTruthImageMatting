@@ -6,8 +6,8 @@
    <rect>
     <x>0</x>
     <y>0</y>
-    <width>764</width>
-    <height>581</height>
+    <width>800</width>
+    <height>600</height>
    </rect>
   </property>
   <property name="windowTitle">
@@ -35,7 +35,13 @@
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="BoxIso"/>
+         <widget class="QComboBox" name="BoxIso">
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
@@ -54,7 +60,13 @@
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="BoxAperture"/>
+         <widget class="QComboBox" name="BoxAperture">
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
@@ -73,19 +85,45 @@
          </widget>
         </item>
         <item>
-         <widget class="QComboBox" name="BoxShutter"/>
+         <widget class="QComboBox" name="BoxShutter">
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+         </widget>
         </item>
        </layout>
       </item>
       <item>
        <layout class="QVBoxLayout" name="lColours">
         <item>
-         <widget class="QListView" name="ListColours"/>
+         <widget class="QListView" name="ListColours">
+          <property name="enabled">
+           <bool>true</bool>
+          </property>
+          <property name="sizePolicy">
+           <sizepolicy hsizetype="Preferred" vsizetype="Expanding">
+            <horstretch>0</horstretch>
+            <verstretch>0</verstretch>
+           </sizepolicy>
+          </property>
+          <property name="font">
+           <font>
+            <pointsize>12</pointsize>
+           </font>
+          </property>
+         </widget>
         </item>
         <item>
          <layout class="QHBoxLayout" name="lColourControl">
           <item>
            <widget class="QPushButton" name="ButtonAdd">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Add</string>
             </property>
@@ -93,6 +131,11 @@
           </item>
           <item>
            <widget class="QPushButton" name="ButtonRemove">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Remove</string>
             </property>
@@ -100,6 +143,11 @@
           </item>
           <item>
            <widget class="QPushButton" name="ButtonUp">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Up</string>
             </property>
@@ -107,6 +155,11 @@
           </item>
           <item>
            <widget class="QPushButton" name="ButtonDown">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Down</string>
             </property>
@@ -121,7 +174,20 @@
     <item>
      <layout class="QVBoxLayout" name="verticalLayout_4">
       <item>
-       <widget class="OpenGlBox" name="PreviewWidget"/>
+       <widget class="OpenGlBox" name="PreviewWidget">
+        <property name="sizePolicy">
+         <sizepolicy hsizetype="MinimumExpanding" vsizetype="Preferred">
+          <horstretch>0</horstretch>
+          <verstretch>0</verstretch>
+         </sizepolicy>
+        </property>
+        <property name="minimumSize">
+         <size>
+          <width>400</width>
+          <height>300</height>
+         </size>
+        </property>
+       </widget>
       </item>
       <item>
        <layout class="QVBoxLayout" name="lAboveGo">
@@ -140,7 +206,13 @@
            </widget>
           </item>
           <item>
-           <widget class="QComboBox" name="BoxProcessedformat"/>
+           <widget class="QComboBox" name="BoxProcessedformat">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>
@@ -148,6 +220,11 @@
          <layout class="QHBoxLayout" name="lSave">
           <item>
            <widget class="QCheckBox" name="CheckSaveProcessed">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Save Processed</string>
             </property>
@@ -155,6 +232,11 @@
           </item>
           <item>
            <widget class="QCheckBox" name="CheckSaveRaw">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
             <property name="text">
              <string>Save Raw</string>
             </property>
@@ -177,7 +259,13 @@
            </widget>
           </item>
           <item>
-           <widget class="QSpinBox" name="SpinDelay"/>
+           <widget class="QSpinBox" name="SpinDelay">
+            <property name="font">
+             <font>
+              <pointsize>12</pointsize>
+             </font>
+            </property>
+           </widget>
           </item>
          </layout>
         </item>
@@ -185,6 +273,11 @@
       </item>
       <item>
        <widget class="QPushButton" name="ButtonGo">
+        <property name="font">
+         <font>
+          <pointsize>12</pointsize>
+         </font>
+        </property>
         <property name="text">
          <string>Go!</string>
         </property>

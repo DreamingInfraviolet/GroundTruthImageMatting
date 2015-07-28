@@ -439,7 +439,8 @@ std::vector<int> Camera::ennumeratePossibleValues(EnnumerableProperties ep)
 	out.reserve(desc.numElements);
 
 	for (int i = 0; i < desc.numElements; ++i)
-		out.push_back(desc.propDesc[i]);
+		if(desc.propDesc[i]!=0)
+			out.push_back(desc.propDesc[i]);
 
 	return out;
 }

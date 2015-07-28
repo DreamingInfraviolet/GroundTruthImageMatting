@@ -2,40 +2,19 @@
 #include <QtGui>
 #include <QApplication>
 #include "window.h"
-#include "actionthread.h"
-#include "event.h"
-#include <future>
+#include <memory>
 
-int main(int argc, char *argv[]){
-
-
+int main(int argc, char *argv[])
+{
 QApplication a(argc, argv);
 
-EventSystem eventSystem;
-
-//Window must be initialised before the action thread.
-
-//Prepare window with event system
-std::unique_ptr<Window> w(Window::create(argc, argv, &eventSystem));
+std::unique_ptr<Window> w(Window::create(argc, argv));
 if (w.get() == nullptr)
-	return -1;
-
-//Launch thread with event system
-std::future<int> returnCode = std::async(std::launch::async, ActionThread, &eventSystem, w.get());
+	return 1;
 
 w->show();
-int appcode = a.exec();
+return a.exec();
 
-//Ask action thread to quit and wait for result
-eventSystem.send(MetaEvent(MetaEvent::MetaType::Shutdown));
-int atcode;
-if (atcode = returnCode.get() != 0)
-{
-	Error(std::string("Action thread error ") + ToString(atcode));
-	return -2;
-}
-
-return appcode;
 }
 
 
