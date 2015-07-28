@@ -1,15 +1,13 @@
 #pragma once
-#include <nana/basic_types.hpp> 
 #include <queue>
-#include <future>
 #include <mutex>
 #include <condition_variable>
 #include <memory>
 #include <cassert>
-
 #include "propertymap.h"
 #include "EDSDKTypes.h"
 #include "image.h"
+#include "colour.h"
 
 class ImageRaw;
 
@@ -52,6 +50,8 @@ public:
 		: type(_type) {}
 
 	Type type;
+
+	virtual Event* clone() const { return new Event(*this); }
 };
 
 /**
@@ -76,79 +76,11 @@ public:
 
 	int value;
 	SetType setType;
-};
 
-/**
-* Allows one to get camera events by sending a request and later fetching the result form the future.
-* */
-class GetEvent : public Event
-{
-	friend class EventSystem;
-	std::shared_future<int> value;
-	std::shared_ptr<std::promise<int> > promise;
-
-public:
-
-	enum class GetType
+	virtual SetEvent* clone() const override
 	{
-		Iso, Aperture, Shutter
-	};
-
-
-	void set(int n)
-	{
-		promise->set_value(n);
-	}
-
-	int get()
-	{
-		return value.get();
-	}
-
-	GetEvent(const GetType type) : Event(Event::Type::Get),
-		getType(type)
-	{
-		promise = decltype(promise)(new std::promise<int>());
-		value = promise->get_future();
-	}
-
-	GetType getType;
-};
-
-/**
-* Allows one to fetch ennumerations of possible values and fetch them later from the future.
-* */
-class EnnumerateEvent : public Event
-{
-	friend class EventSystem;
-	std::shared_future<std::vector<int> > value;
-	std::shared_ptr<std::promise<std::vector<int> > > promise;
-
-public:
-
-	enum class EnnumerateType
-	{
-		Iso, Aperture, Shutter
-	};
-
-	EnnumerateType ennumerateType;
-
-	void set(const std::vector<int>& ennumeration)
-	{
-		promise->set_value(ennumeration);
-	}
-
-
-	std::vector<int> get()
-	{
-		return value.get();
-	}
-
-	EnnumerateEvent(const EnnumerateType type) : Event(Event::Type::Ennumerate),
-		ennumerateType(type)
-	{
-		promise = decltype(promise)(new std::promise<std::vector<int> >());
-		value = promise->get_future();
+		SetEvent* event = new SetEvent(*this);
+		return event;
 	}
 };
 
@@ -159,32 +91,25 @@ class ShootEvent : public Event
 {
 	friend class EventSystem;
 
-	//Retrieve the result here if needed. Ignore otherwise.
-	std::shared_future<std::shared_ptr<ImageRaw> > image;
-	std::shared_ptr<std::promise<std::shared_ptr<ImageRaw> > > promise;
-
 public:
 
 	//Delay in seconds.
 	int delay;
 	bool saveBMP, saveRAW;
-	std::vector<nana::color> colours;
+	std::vector<Colour> colours;
 
 public:
 
-	std::shared_ptr<ImageRaw> getImage()
-	{
-		return image.get();
-	}
-
-	ShootEvent(int delay_, bool saveBMP_, bool saveRAW_, const std::vector<nana::color>& colours_) : Event(Event::Type::Shoot),
+	ShootEvent(int delay_, bool saveBMP_, bool saveRAW_, const std::vector<Colour>& colours_) : Event(Event::Type::Shoot),
 		delay(delay_),
 		saveBMP(saveBMP_),
 		saveRAW(saveRAW_),
-		colours(colours_)
+		colours(colours_){}
+
+	virtual ShootEvent* clone() const override
 	{
-		promise = decltype(promise)(new std::promise<std::shared_ptr<ImageRaw> >());
-		image = promise.get()->get_future();
+		ShootEvent* event = new ShootEvent(*this);
+		return event;
 	}
 };
 
@@ -206,37 +131,13 @@ public:
 
 	MetaEvent(const MetaType type) : Event(Event::Type::Meta),
 		metaType(type) {}
-};
 
-/*
-* Ennumerates the cameras, returning a bidirectional mapping between camera pointers and their names.
-* */
-class EnnumerateCameraEvent : public Event
-{
-	friend class EventSystem;
-
-	std::shared_future<PropertyMapTmp<EdsCameraRef, std::string> > value;
-	std::shared_ptr<std::promise<PropertyMapTmp<EdsCameraRef, std::string> > > promise;
-
-public:
-	EnnumerateCameraEvent() : Event(Event::Type::EnnumerateCameras)
+	virtual MetaEvent* clone() const override
 	{
-		promise = decltype(promise)(new std::promise<PropertyMapTmp<EdsCameraRef, std::string> >());
-		value = promise->get_future();
-	}
-
-	PropertyMapTmp<EdsCameraRef, std::string> get()
-	{
-		return value.get();
-	}
-
-	void set(const PropertyMapTmp<EdsCameraRef, std::string>& mapping)
-	{
-		promise->set_value(mapping);
+		MetaEvent* event = new MetaEvent(*this);
+		return event;
 	}
 };
-
-
 
 /**
 * This class serves as the driving force between the one way event system.
@@ -246,7 +147,7 @@ public:
 class EventSystem
 {
 private:
-	std::queue<std::shared_ptr<Event> > mEvents;
+	std::queue<std::shared_ptr<Event>> mEvents;
 	std::mutex mMutex, mBlockMutex;
 	std::condition_variable mBlockCondition;
 public:
@@ -259,10 +160,10 @@ public:
 	void operator = (const EventSystem&) = delete;
 
 	/** Sends an event to the action thread. */
-	void send(const std::shared_ptr<Event>& e);
+	void send(const Event& e);
 
 	/** Sends all of the given inputs. */
-	void send(const std::initializer_list<std::shared_ptr<Event> >& list);
+	void send(const std::initializer_list<Event>& list);
 
 	/** pops the next list off the queue and presents it.
 	* If there is nothing to poll, the method blocks the thread until there is.

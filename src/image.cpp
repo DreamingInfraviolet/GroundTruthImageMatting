@@ -1,10 +1,10 @@
 #include "image.h"
+#include <opencv2/core.hpp>
+#include <opencv2/opencv.hpp>
 #include <assert.h>
 #include <fstream>
 #include "EDSDK.h"
 #include "io.h"
-#include "SOIL.h"
-
 
 
 size_t Image::getDataLength()
@@ -45,41 +45,6 @@ void ImageRaw::copyNonMovable(const ImageRaw & img)
 	mHeight = img.mHeight;
 }
 
-
-std::vector<unsigned char> ImageRaw::getRawRGB()
-{
-	EdsImageInfo imageInfo;
-	CHECK_EDS_ERROR(EdsGetImageInfo(mImageRef, kEdsImageSrc_RAWFullView, &imageInfo), "Could not retrieve image info", {});
-
-	//Create stream
-	EdsStreamRef rgbStream = nullptr;
-	CHECK_EDS_ERROR(EdsCreateMemoryStream(3 * imageInfo.width*imageInfo.height, &rgbStream),
-		"Failed to create memory stream", {});
-
-	//Get image in rgb format into memory
-	EdsSize size;
-	size.height = imageInfo.height;
-	size.width = imageInfo.width;
-	CHECK_EDS_ERROR(EdsGetImage(mImageRef, kEdsImageSrc_RAWFullView, kEdsTargetImageType_RGB,
-		imageInfo.effectiveRect, size, rgbStream), "Could not retrieve the image", {});
-
-	void* imageData;
-	CHECK_EDS_ERROR(EdsGetPointer(rgbStream, &imageData), "Could not retrieve the image pointer", {});
-	
-
-	std::vector<unsigned char> out;
-	out.resize(3 * imageInfo.width*imageInfo.height);
-	memcpy(&out[0], imageData, out.size());
-
-	EdsUInt32 expectedImageSize;
-	EdsGetLength(rgbStream, &expectedImageSize);
-	assert(expectedImageSize == out.size());
-
-	EdsRelease(rgbStream);
-
-	return out;
-}
-
 std::vector<unsigned char> ImageRaw::rgbToRgba(const std::vector<unsigned char>& rgb, unsigned char alpha)
 {
 	if (rgb.size() % 3 != 0)
@@ -101,7 +66,7 @@ std::vector<unsigned char> ImageRaw::rgbToRgba(const std::vector<unsigned char>&
 	unsigned count = rgb.size()/3;
 
 	for (unsigned i = count; --i; rgbaptr += 4, rgbptr += 3)
-		*(uint32_t*)(void*)rgbaptr = *(const uint32_t*)(const void*)rgbptr;
+		*(unsigned*)(void*)rgbaptr = *(const unsigned*)(const void*)rgbptr;
 	for (unsigned j = 0; j<3; ++j)
 		rgbaptr[j] = rgb[j];
 
@@ -128,6 +93,13 @@ ImageRaw::ImageRaw(EdsImageRef imageRef, const void * data, size_t dataSize, int
 ImageRaw::~ImageRaw()
 {
 	clear();
+}
+
+ImageRaw ImageRaw::getFailed()
+{
+	ImageRaw out;
+	out.fail();
+	return out;
 }
 
 ImageRaw::ImageRaw(ImageRaw&& img)
@@ -169,14 +141,52 @@ void ImageRaw::clear()
 
 ImageRGBA ImageRaw::asRGBA()
 {
-	std::vector<unsigned char> rgba = rgbToRgba(getRawRGB(), 255);
-	if (rgba.size() == 0)
+	EdsImageInfo imageInfo;
+	CHECK_EDS_ERROR(EdsGetImageInfo(mImageRef, kEdsImageSrc_RAWFullView, &imageInfo),
+		"Could not retrieve image info", ImageRGBA::getFailed());
+
+	//Create stream
+	EdsStreamRef rgbStream = nullptr;
+	CHECK_EDS_ERROR(EdsCreateMemoryStream(3 * imageInfo.width*imageInfo.height, &rgbStream),
+		"Failed to create memory stream", {});
+
+	if (imageInfo.width*imageInfo.height == 0)
 	{
-		ImageRGBA out;
-		out.fail();
-		return out;
+		Warning("Cannot process empty image");
+		return{ ImageRGBA::getFailed() };
 	}
-	return ImageRGBA (&rgba[0], rgba.size(), mWidth, mHeight);
+
+	//Get image in rgb format into memory
+	EdsSize size;
+	size.height = imageInfo.height;
+	size.width = imageInfo.width;
+	CHECK_EDS_ERROR(EdsGetImage(mImageRef, kEdsImageSrc_RAWFullView, kEdsTargetImageType_RGB,
+		imageInfo.effectiveRect, size, rgbStream), "Could not retrieve the image", ImageRGBA::getFailed());
+
+	//Assert byte size of the stream
+	EdsUInt32 imageDataSize;
+	EdsGetLength(rgbStream, &imageDataSize);
+	assert(imageDataSize == size.width*size.height * 3);
+
+
+	void* imageData;
+	CHECK_EDS_ERROR(EdsGetPointer(rgbStream, &imageData), "Could not retrieve the image pointer", ImageRGBA::getFailed());
+
+	//Create image mat for rgb
+	cv::Mat imageRgb(size.height, size.width, CV_8UC3, imageData);
+
+	//Create image mat for new rgba
+	std::vector<unsigned char> rgbaData;
+	rgbaData.resize(size.height*size.width*4);
+	cv::Mat imageRgba(size.height, size.width, CV_8UC4, &rgbaData[0]);
+
+	//Copy rgb into rgba, making conversions
+	cv::cvtColor(imageRgb, imageRgba, CV_RGB2RGBA, 4);
+
+	//Free rgb
+	EdsRelease(rgbStream);
+
+	return ImageRGBA (rgbaData, mWidth, mHeight);
 }
 
 bool ImageRaw::loadFromFile(const char * path)
@@ -217,19 +227,39 @@ ImageRGBA::ImageRGBA(const void * data, size_t dataSize, int width, int height)
 	memcpy(&mData[0], data, dataSize);
 }
 
+ImageRGBA::ImageRGBA(std::vector<unsigned char>& vector, int width, int height)
+{
+	mData.swap(vector);
+	mWidth = width;
+	mHeight = height;
+}
+
+ImageRGBA ImageRGBA::getFailed()
+{
+	ImageRGBA out;
+	out.fail();
+	return out;
+}
+
 bool ImageRGBA::loadFromFile(const char * path)
 {
-	if (SOIL_load_image(path, &mWidth, &mHeight, nullptr, SOIL_LOAD_RGBA) == 0)
+	cv::Mat image = cv::imread(path, CV_8UC4);
+	if (image.data==nullptr)
 	{
 		Error(std::string("Could not load ") + path);
 		return false;
 	}
+
+	mData.resize(image.rows*image.cols*4);
+	memcpy(&mData[0], image.data, mData.size());
+
 	return true;
 }
 
 bool ImageRGBA::saveToFile(const char * path)
 {
-	if (SOIL_save_image(path, SOIL_SAVE_TYPE_TGA, mWidth, mHeight, 4, &mData[0]) == 0)
+	cv::Mat image(mHeight, mWidth, CV_8UC4, &mData[0]);
+	if(!cv::imwrite(path, image))
 	{
 		Error(std::string("Could not save ") + path);
 		return false;

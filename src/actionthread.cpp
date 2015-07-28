@@ -1,36 +1,42 @@
 #include "event.h"
 #include "io.h"
+#include "camera.h"
+#include "window.h"
 
-int ActionThread(EventSystem* eventSystem)
+int ActionThread(EventSystem* eventSystem, Window* window)
 {
 	Inform("Running action thread");
 
+	//Initialise camera system
+	Inform("Initialising camera");
+	std::unique_ptr<CameraList> cameraList(CameraList::create(true));
 
+	if (!cameraList.get())
+		goto QUIT_ACTION_THREAD;
+
+	if (cameraList->ennumerate() == 0)
+	{
+		Error("No cameras found");
+		goto QUIT_ACTION_THREAD;
+	}
+	
+	Camera& mainCamera = cameraList->cameras[0];
+	if (!mainCamera.select())
+	{
+		Error("colould not select the main camera.");
+		goto QUIT_ACTION_THREAD;
+	}
 
 	while (true)
 	{
-		std::shared_ptr<Event> esp = eventSystem->poll();
-		Event& event = *esp.get();
+		std::shared_ptr<Event> eptr = eventSystem->poll();
+		Event& event = *eptr;
 
 		switch (event.type)
 		{
-		case Event::Type::Get:
-		{
-			Inform("Receiving get event");
-			GetEvent& getEvent = dynamic_cast<GetEvent&>(event);
-			getEvent.set(80);
-		}
-		break;
 		case Event::Type::Set:
 			Inform("Receiving set event");
 		{
-		}
-		break;
-		case Event::Type::Ennumerate:
-		{
-			EnnumerateEvent& enumEvent = dynamic_cast<EnnumerateEvent&>(event);
-			Inform("Receiving ennumerate event");
-			enumEvent.set({ 77,80 });
 		}
 		break;
 		case Event::Type::Shoot:
@@ -42,14 +48,13 @@ int ActionThread(EventSystem* eventSystem)
 		case Event::Type::Meta:
 		{
 			Inform("Receiving meta event");
-			MetaEvent& metaEvent = dynamic_cast<MetaEvent&>(event);
-		}
-		break;
-		case Event::Type::EnnumerateCameras:
-		{
-			Inform("Receiving Ennumerate Cameras event in action thread");
-			EnnumerateCameraEvent& cameraEvent = dynamic_cast<EnnumerateCameraEvent&>(event);
-			cameraEvent.set({});
+			MetaEvent metaEvent = static_cast<MetaEvent&>(event);
+
+			switch (metaEvent.metaType)
+			{
+			case MetaEvent::MetaType::Shutdown:
+				return 0; //Normal return
+			}
 		}
 		break;
 		case Event::Type::None:
@@ -62,5 +67,10 @@ int ActionThread(EventSystem* eventSystem)
 		}
 	}
 
-	return 0;
+	//Emergency return, shutting down the window.
+	//Goto statement justification: Cleanest way to quit to the error code without returning.
+	QUIT_ACTION_THREAD:
+	Inform("Closing window due to error");
+	window->close();
+	return 3;
 }

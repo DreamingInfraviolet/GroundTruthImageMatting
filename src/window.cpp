@@ -3,137 +3,29 @@
 #include "io.h"
 #include "camera.h"
 #include <thread>
-Window::Window(int width, int height)
-	: nana::form(nana::API::make_center(width, height),
-				 nana::appearance(true, true, true, false, true, false, false)),
-	mCameraBox(*this, true),
-	mDelaySpinbox(*this, true),
-	mColours(*this, true),
-	mAddColourButton(*this, true),
-	mRemoveColourButton(*this, true),
-	mUpColourButton(*this, true),
-	mDownColourButton(*this, true),
-	mIsoLabel(*this, true),
-	mIsoBox(*this, true),
-	mShutterLabel(*this, true),
-	mShutterBox(*this, true),
-	mApertureLabel(*this, true),
-	mApertureBox(*this, true),
-	mGoButton(*this, true),
-	mTimerSpinbox(*this, true),
-	mSaveBmpCheckbox(*this, true),
-	mSaveRawCheckbox(*this, true),
-	mMainPlace(*this) {}
+Window::Window(int argc, char** argv) {}
 
 bool Window::initialise()
 {
-	//Launch action thread
-	mActionThreadReturn = std::async(std::launch::async, ActionThread, &mEventSystem);
+	ui.setupUi(this);
 
-	//Request information about the camera
-	std::shared_ptr<EnnumerateEvent> isoEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Iso));
-	std::shared_ptr<EnnumerateEvent> apertureEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Aperture));
-	std::shared_ptr<EnnumerateEvent> shutterEnnumerationEvent(new EnnumerateEvent(EnnumerateEvent::EnnumerateType::Shutter));
+	connect(ui.ButtonAdd, SIGNAL(pressed()), this, SLOT(buttonAddEvent()));
+	connect(ui.ButtonRemove, SIGNAL(pressed()), this, SLOT(buttonRemoveEvent()));
+	connect(ui.ButtonUp, SIGNAL(pressed()), this, SLOT(buttonUpEvent()));
+	connect(ui.ButtonDown, SIGNAL(pressed()), this, SLOT(buttonDownEvent()));
 
-	std::shared_ptr<GetEvent> currentIsoEvent(new GetEvent(GetEvent::GetType::Iso));
-	std::shared_ptr<GetEvent> currentApertureEvent(new GetEvent(GetEvent::GetType::Aperture));
-	std::shared_ptr<GetEvent> currentShutterEvent(new GetEvent(GetEvent::GetType::Shutter));
-
-	std::shared_ptr<EnnumerateCameraEvent> availableCamerasEvent(new EnnumerateCameraEvent());
-
-	//Send data requests
-	mEventSystem.send({ isoEnnumerationEvent,
-					   apertureEnnumerationEvent,
-					   shutterEnnumerationEvent,
-					   currentIsoEvent,
-					   currentApertureEvent,
-					   currentShutterEvent,
-					   availableCamerasEvent });
-
-	//Set up GUI
-	using namespace nana;
-
-	mColours.auto_draw(true);
-	mColours.ordered_categories(false);
-	mColours.show_header(false);
-	mColours.append_header(STR("Colours"), 200);
-	auto test = mColours.append(STR("Colours"));
-	test.append({ STR("Hi"),STR("Yo") });
-
-	//Set button captions
-	mAddColourButton.caption(STR("Add"));
-	mRemoveColourButton.caption(STR("Remove"));
-	mUpColourButton.caption(STR("Up"));
-	mDownColourButton.caption(STR("Down"));
-	mGoButton.caption(STR("Go!"));
-
-	//Set label captions
-	mIsoLabel.caption(STR("ISO"));
-	mShutterLabel.caption(STR("Shutter Speed"));
-	mApertureLabel.caption(STR("Aperture"));
-
-	//Get current values
-	int currentIso = currentIsoEvent->get();
-	int currenAperture = currentApertureEvent->get();
-	int currentShutter = currentShutterEvent->get();
-
-	//Fill iso values:
-	auto isoEnums = isoEnnumerationEvent.get()->get();
-	for (auto it = isoEnums.begin(); it != isoEnums.end(); ++it)
-		mIsoBox.push_back(nana::charset(Camera::isoMappings[*it], nana::unicode::utf8));
-
-	//Fill shutter values:
-	auto shuttErenums = shutterEnnumerationEvent->get();
-	for (auto it = shuttErenums.begin(); it != shuttErenums.end(); ++it)
-		mShutterBox.push_back(nana::charset(Camera::shutterSpeedMappings[*it], nana::unicode::utf8));
-
-	//Fill aperture values:
-	auto apertureEnums = apertureEnnumerationEvent->get();
-	for (auto it = apertureEnums.begin(); it != apertureEnums.end(); ++it)
-		mApertureBox.push_back(nana::charset(Camera::isoMappings[*it], nana::unicode::utf8));
-
-	//Fill camera list:
-	auto cameraMappings = availableCamerasEvent->get();
-	for (auto it = cameraMappings.mForwardMap.begin(); it != cameraMappings.mForwardMap.end(); ++it)
-	{
-		cameras.emplace_back(*it);
-		mCameraBox.push_back(nana::charset(it->second, nana::unicode::utf8));
-	}
-
-
-
-	mMainPlace.div("<vertical  <weight=10% margin=10 ISO_CONTROL> "
-					"<weight=10% margin=10 APERTURE_CONTROL> "
-					"<weight=10% margin=10 SHUTTER_CONTROL> "
-					"<weight=60% margin=10 COLOUR_BOX > "
-					"<weight=10% margin=10 COLOUR_CONTROL> "
-					" ><RIGHT>");
-	mMainPlace["ISO_CONTROL"] << mIsoLabel << mIsoBox;
-	mMainPlace["APERTURE_CONTROL"] << mApertureLabel << mApertureBox;
-	mMainPlace["SHUTTER_CONTROL"] << mShutterLabel << mShutterBox;
-	mMainPlace["COLOUR_BOX"] << mColours;
-	mMainPlace["COLOUR_CONTROL"] << mAddColourButton;
-	mMainPlace["COLOUR_CONTROL"] << mRemoveColourButton;
-
-	mMainPlace["RIGHT"] << mGoButton;
-
-	mMainPlace.collocate();
-
-	Inform("Done initialising window");
-	show();
-
+	ui.BoxProcessedformat->addItems({ "tiff", "bmp", "jpg", "png" });
 	return true;
 }
 
-bool Window::initialiseCameras()
+bool Window::initialiseCamera()
 {
-	return true;
+
 }
 
-
-Window* Window::create(int width, int height)
+Window* Window::create(int argc, char** argv, EventSystem* system)
 {
-	Window* out = new Window(width, height);
+	Window* out = new Window(argc, argv);
 	if (!out)
 		return nullptr;
 	if (!out->initialise())
@@ -142,19 +34,29 @@ Window* Window::create(int width, int height)
 		return nullptr;
 	}
 	else
+	{
+		out->mEventSystem = system;
 		return out;
+	}
 }
 
-Window::~Window()
+Window::~Window(){}
+
+void Window::buttonAddEvent()
 {
+	while (true){ Inform("Pressed"); }
 }
 
-
-int Window::run()
+void Window::buttonRemoveEvent()
 {
-	nana::exec();
+	while (true){ Inform("Pressed"); }
+}
+void Window::buttonUpEvent()
+{
+	while (true){ Inform("Pressed"); }
+}
 
-	//Kill action thread and get result:
-	mEventSystem.send(std::shared_ptr<MetaEvent>(new MetaEvent(MetaEvent::MetaType::Shutdown)));
-	return mActionThreadReturn.get();
+void Window::buttonDownEvent()
+{
+	while (true){ Inform("Pressed"); }
 }

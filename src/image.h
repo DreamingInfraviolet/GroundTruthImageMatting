@@ -5,6 +5,7 @@
 * */
 
 #include <vector>
+#include <tuple>
 #include "EDSDKTypes.h"
 
 class Image
@@ -49,12 +50,6 @@ class ImageRaw : public Image
 {
 private:
 
-	/**
-	* Interpolates the image, getting the RGB values as defined by  EdsGetImage.
-	* Return is empty upon failure.
-	* */
-	std::vector<unsigned char> getRawRGB();
-
 	/** Copies values into the class that can not be moved.*/
 	void copyNonMovable(const ImageRaw& img);
 
@@ -75,6 +70,9 @@ public:
 
 	/** Destructor. Class clear() */
 	~ImageRaw();
+
+	/** Creates a failed empty image. */
+	static ImageRaw getFailed();
 
 	/**Move constructor to help performance */
 	ImageRaw(ImageRaw&& img);
@@ -115,6 +113,12 @@ public:
 
 	/** Creates the image from memory, copying from the inputted source. */
 	ImageRGBA(const void* data, size_t dataSize, int width, int height);
+
+	/** Creates the image from the rgba vector, leaving the initial vector in an invalid state. */
+	ImageRGBA(std::vector<unsigned char>& vector, int width, int height);
+
+	/** Creates a failed empty image. */
+	static ImageRGBA getFailed();
 
 	/** Loads the specified image. */
 	virtual bool loadFromFile(const char* path) override;

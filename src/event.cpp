@@ -4,14 +4,14 @@ EventSystem::EventSystem()
 {
 }
 
-void EventSystem::send(const std::shared_ptr<Event>& e)
+void EventSystem::send(const Event& e)
 {
 	std::lock_guard<std::mutex> guard(mMutex);
-	mEvents.push(e);
+	mEvents.push(std::shared_ptr<Event>(e.clone()));
 	mBlockCondition.notify_one();
 }
 
-void EventSystem::send(const std::initializer_list<std::shared_ptr<Event>>& list)
+void EventSystem::send(const std::initializer_list<Event>& list)
 {
 	for (auto it = list.begin(); it != list.end(); ++it)
 		send(*it);
@@ -29,7 +29,7 @@ std::shared_ptr<Event> EventSystem::poll()
 		guard.lock();
 	}
 
-	std::shared_ptr<Event> out = mEvents.front();
+	std::shared_ptr<Event> out (mEvents.front());
 	mEvents.pop();
 	return out;
 }

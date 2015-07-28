@@ -1,5 +1,105 @@
-#include "window.h"
 
+#include <QtGui>
+#include <QApplication>
+#include "window.h"
+#include "actionthread.h"
+#include "event.h"
+#include <future>
+
+int main(int argc, char *argv[]){
+
+
+QApplication a(argc, argv);
+
+EventSystem eventSystem;
+
+//Window must be initialised before the action thread.
+
+//Prepare window with event system
+std::unique_ptr<Window> w(Window::create(argc, argv, &eventSystem));
+if (w.get() == nullptr)
+	return -1;
+
+//Launch thread with event system
+std::future<int> returnCode = std::async(std::launch::async, ActionThread, &eventSystem, w.get());
+
+w->show();
+int appcode = a.exec();
+
+//Ask action thread to quit and wait for result
+eventSystem.send(MetaEvent(MetaEvent::MetaType::Shutdown));
+int atcode;
+if (atcode = returnCode.get() != 0)
+{
+	Error(std::string("Action thread error ") + ToString(atcode));
+	return -2;
+}
+
+return appcode;
+}
+
+
+/*
+#include "camera.h"
+#include <memory>
+#include "io.h"
+#include <iostream>
+#include <Windows.h>
+
+int main(int argc, char** argv)
+{
+
+	std::auto_ptr<CameraList> list(CameraList::create(true));
+
+	if (list.get() == nullptr)
+	{
+		Error("Could not initialise camera SDK.");
+		return 1;
+	}
+
+	if (list->ennumerate() == 0)
+	{
+		Error("No cameras found.");
+		return 2;
+	}
+
+	std::cout << "Found " << list->cameras.size() << " cameras.\n";
+
+	if (list->cameras.size() > 0)
+	{
+		Camera& cam = list->cameras[0];
+		cam.select();
+
+		cam.shoot();
+
+		while (!cam.readyToShoot())
+		{
+			MSG Msg;
+			while (PeekMessage(&Msg, NULL, 0, 0, 1))
+			{
+				TranslateMessage(&Msg);
+				DispatchMessage(&Msg);
+			}
+		}
+
+		Inform("Processing raw");
+		auto image = cam.retrieveLastImage();
+		Inform("Saving raw");
+		image.saveToFile("C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured\\shot.cr2");
+		Inform("Processing tga");
+		auto imageRgba = image.asRGBA();
+		Inform("Saving rgba");
+		imageRgba.saveToFile("C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured\\shot.tiff");
+
+		cam.deselect();
+
+	}
+
+	return 0;
+}
+*/
+
+/*
 int main()
 {
 	Window* window = Window::create(800, 600);
@@ -8,7 +108,7 @@ int main()
 	else
 		return -1;
 }
-
+*/
 
 
 /*
