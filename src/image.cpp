@@ -5,6 +5,7 @@
 #include <fstream>
 #include "EDSDK.h"
 #include "io.h"
+#include "camera.h"
 
 
 size_t Image::getDataLength()

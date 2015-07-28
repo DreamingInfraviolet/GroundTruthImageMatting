@@ -1,24 +1,42 @@
 #pragma once
 #include <qopenglwidget.h>
 #include <QOpenGLFunctions>
+#include <qopengltexture.h>
+#include "vertex.h"
 
 class OpenGlBox :public  QOpenGLWidget, protected QOpenGLFunctions
 {
 	Q_OBJECT
-public:
-	OpenGlBox(QWidget* parent) : QOpenGLWidget(parent) {}
 
-	void initializeGL()
-		override
+private:
+
+	friend class ShaderProgram;
+	friend class ImageShader;
+
+	ImageShader* mImageShader = nullptr;
+	QOpenGLTexture* mVideoTexture = nullptr;
+
+	struct
 	{
-		initializeOpenGLFunctions();
-		glClearColor(1, 0, 0, 1);
-		glClear(GL_COLOR_BUFFER_BIT);
-	}
+		Vertex2D quad[6];
+		GLuint VBO;
+	} mQuad;
 
-	void paintGL() override{ glClear(GL_COLOR_BUFFER_BIT); }
-	void resizeGL(int width, int height) override
-	{}
+	void initialiseQuad();
 
+public:
+	OpenGlBox(QWidget* parent);
+
+	~OpenGlBox();
+
+	void initializeGL();
+
+	void paintGL() override;
+
+	void resizeGL(int width, int height) override;
+
+	void updateVideoTexture();
 
 };
+
+extern OpenGlBox* gOpenGlBox;

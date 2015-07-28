@@ -16,8 +16,8 @@ template <class LEFT, class RIGHT>
 class PropertyMapTmp
 {
 public:
-	std::map<LEFT,RIGHT> mForwardMap;
-	std::map<RIGHT,LEFT> mBackwardMap;
+	std::map<LEFT, RIGHT> mForwardMap;
+	std::map<RIGHT, LEFT> mBackwardMap;
 
 	/** Trivial default constructor. */
 	PropertyMapTmp() {}
@@ -28,7 +28,7 @@ public:
 	* */
 	PropertyMapTmp(const std::initializer_list<std::pair<LEFT, RIGHT> >&  list)
 	{
-		for(auto pair : list)
+		for (auto pair : list)
 			push_back(pair);
 	}
 
@@ -62,4 +62,4 @@ public:
 	}
 };
 
-typedef PropertyMapTmp<int,std::string> PropertyMap;
+typedef PropertyMapTmp<int, std::string> PropertyMap;

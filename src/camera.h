@@ -7,6 +7,32 @@
 #include "image.h"
 
 
+//returns the ret parameter if the function fails, printing the given error message along with the error code.
+//Returns the error code if ret==err
+#define CHECK_EDS_ERROR(func, message, ret) {													\
+								   int err = func; 												\
+								   if(err!=EDS_ERR_OK) 											\
+								   								   	{															\
+								   		Error(std::string("Camera error in ") + 				\
+								   		ToString(__FILE__) + " on line " +						\
+								   		ToString(__LINE__) + ": " + message + 					\
+								   		" | " + EdsCodeToString(err));  						\
+								   		return ret;												\
+								   								   	}															\
+							   							   }
+
+
+//Warns if an error has occured without returning.
+#define WARN_EDS_ERROR(func, message)   {														\
+								   int err = func;	 											\
+								   if(err!=EDS_ERR_OK) 											\
+								   		Warning(std::string("Camera error in ") + 				\
+								   		ToString(__FILE__) + " on line " +						\
+								   		ToString(__LINE__) + ": " + message + 					\
+								   		" | " + EdsCodeToString(err));  						\
+															    }
+
+
 //To do: When an error occurs, some resources are not freed. Maybe write a helper class to delete things upon exit.
 //Also, figure out image move constructor.
 
@@ -130,6 +156,8 @@ public:
 	/** Resets the shutdown timer of the camera, keeping it awake for longer without powering off. */
 	bool resetShutdownTimer();
 
+	/** Returns a jpg image file of the live stream. */
+	std::vector<unsigned char> getLiveImage();
 };
 
 

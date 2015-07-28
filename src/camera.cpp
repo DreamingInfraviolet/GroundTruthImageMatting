@@ -617,6 +617,29 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 	return EDS_ERR_OK;
 }
 
+std::vector<unsigned char> Camera::getLiveImage()
+{
+	EdsStreamRef stream;
+	CHECK_EDS_ERROR(EdsCreateMemoryStream(0, &stream), "Could not create stream", {});
 
+	EdsEvfImageRef image;
+	CHECK_EDS_ERROR(EdsCreateEvfImageRef(stream, &image), "Could not create live stream image ref", {});
+
+	CHECK_EDS_ERROR(EdsDownloadEvfImage(mCameraRef, image), "Could not download live stream", {});
+
+	void* data;
+	CHECK_EDS_ERROR(EdsGetPointer(stream, (EdsVoid**)& data), "Could not get image pointer", {});
+
+	EdsUInt32 dataLen;
+	CHECK_EDS_ERROR(EdsGetLength(stream, &dataLen), "Could not get stream size", {});
+
+	std::vector<unsigned char> out;
+	out.resize(dataLen);
+	memcpy(&out[0], data, dataLen);
+
+	EdsRelease(stream);
+
+	return out;
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////

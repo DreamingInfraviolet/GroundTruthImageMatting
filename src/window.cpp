@@ -26,8 +26,8 @@ bool Window::initialise()
 	mColourModel = std::unique_ptr<QStringListModel>(new QStringListModel(this));
 	ui.ListColours->setModel(mColourModel.get());
 	ui.ListColours->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	//if (!initialiseCamera())
-	//	return false;
+	if (!initialiseCamera())
+		return false;
 
 	return true;
 }
@@ -144,7 +144,7 @@ void Window::changeIsoEvent(int value)
 		return;
 	}
 
-	camera->iso(value);
+	camera->iso(Camera::isoMappings[std::string(ui.BoxIso->itemText(value).toUtf8())]);
 }
 
 void Window::changeApertureEvent(int value)
@@ -156,7 +156,7 @@ void Window::changeApertureEvent(int value)
 		return;
 	}
 
-	camera->aperture(value);
+	camera->aperture(Camera::apertureMappings[std::string(ui.BoxAperture->itemText(value).toUtf8())]);
 }
 
 void Window::changeShutterEvent(int value)
@@ -168,7 +168,7 @@ void Window::changeShutterEvent(int value)
 		return;
 	}
 
-	camera->shutterSpeed(value);
+	camera->shutterSpeed(Camera::shutterSpeedMappings[std::string(ui.BoxShutter->itemText(value).toUtf8())]);
 }
 
 

@@ -6,6 +6,9 @@ file(GLOB SOURCES
     "*.cpp"
 )
 
+file(GLOB HEADERS
+	".h")
+
 set(HEADERS
 			camera.h
 			colour.h
@@ -14,6 +17,9 @@ set(HEADERS
 			image.h
 			io.h
 			propertymap.h
+			vertex.h
+			shaderprogram.h
+			imageshader.h
 			)
 
 set(MOCS window.h openglbox.h)
