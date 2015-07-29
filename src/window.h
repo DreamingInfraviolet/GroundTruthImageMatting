@@ -2,50 +2,60 @@
 
 #include <mutex>
 #include <QtGui>
-#include <QApplication>
 #include "ui_mainui.h"
-#include "io.h"
-#include "camera.h"
-#include <memory>
+
+class ActionClass;
 
 /**
 * This class is meant to act as the main force driving the program.
-* It specifies the user interface, and selects the actions to perform.
+* It specifies the user interface, and performs the actions that need to be done.
 * */
 class Window : public QMainWindow
 {
-	Q_OBJECT //You *must* include this macro !!!!
+	Q_OBJECT
 private:
-
 
 	/**
 	* Main constructor creating the window. Sets the state to idle.
-	* Hidden: use create() to allow for error reporting.
+	* Hidden: use create().
 	* */
-	Window(int argc, char** argv);
+	Window();
 
-	/** Performs geleral initialisation. Returns true upon success. */
+	/** Performs general initialisation. Returns true upon success. */
 	bool initialise();
 
-	//Initialises the main camera.
+	/** Initialises the camera system and selects the first camera upon success. */
 	bool initialiseCamera();
 
-
-	Ui::MainWindow ui;//This ui object gives you access to your ui widgets
+	Ui::MainWindow ui;
 	std::unique_ptr<QStringListModel> mColourModel; //Used to control the colour list
-	std::unique_ptr<CameraList> mCameraList;
+	
+	std::unique_ptr<ActionClass> mActionClass;
+
+	//This is used to disable the QT event system when SFML is used.
+	class EventFilter : public QObject
+	{
+	public:
+		EventFilter(){}
+		bool eventFilter(QObject * watched, QEvent * event) override { return true; }
+	} mFilter;
 public:
 
 	/**
 	* Creates a new window, or returns null upon failure.
 	* */
-	static Window* create(int argc, char** argv);
+	static Window* create();
 
 	/**
 	* Destructor cleaning up resources.
 	*/
 	~Window();
 
+	void disableEvents();
+	void enableEvents();
+
+signals:
+	void showOther();
 
 	public slots:
 	void buttonAddEvent();

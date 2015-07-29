@@ -9,19 +9,6 @@ file(GLOB SOURCES
 file(GLOB HEADERS
 	".h")
 
-set(HEADERS
-			camera.h
-			colour.h
-			compatabilitylayer.h
-			event.h
-			image.h
-			io.h
-			propertymap.h
-			vertex.h
-			shaderprogram.h
-			imageshader.h
-			)
-
 set(MOCS window.h openglbox.h)
 set(UIS mainui.ui)
 
@@ -69,6 +56,13 @@ find_package(OpenGL REQUIRED)
 target_link_libraries(CameraControl ${OPENGL_LIBRARIES})
 include_directories( ${OPENGL_INCLUDE_DIRS}  ${GLUT_INCLUDE_DIRS} )
 
+#Add sfml
+
+set(SFML_ROOT "${CMAKE_SOURCE_DIR}/third_party/sfml/")
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/third_party/sfml/cmake/Modules" ${CMAKE_MODULE_PATH})
+find_package(SFML 2 REQUIRED system window graphics)
+include_directories(${SFML_INCLUDE_DIR})
+target_link_libraries(CameraControl ${SFML_LIBRARIES})
 
 #Add canon API
 target_link_libraries(CameraControl "${PROJECT_SOURCE_DIR}/third_party/canon/EDSDK/Library/EDSDK.lib")

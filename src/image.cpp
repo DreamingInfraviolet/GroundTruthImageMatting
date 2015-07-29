@@ -198,6 +198,9 @@ bool ImageRaw::loadFromFile(const char * path)
 
 bool ImageRaw::saveToFile(const char * path)
 {
+	if (mData.size() == 0)
+		return false;
+
 	std::fstream stream(path, std::ios::out | std::ios::binary);
 	if (stream.fail())
 	{
@@ -259,6 +262,9 @@ bool ImageRGBA::loadFromFile(const char * path)
 
 bool ImageRGBA::saveToFile(const char * path)
 {
+	if (mData.size() == 0)
+		return false;
+
 	cv::Mat image(mHeight, mWidth, CV_8UC4, &mData[0]);
 	if(!cv::imwrite(path, image))
 	{

@@ -1,6 +1,9 @@
 #pragma once
 #include <io.h>
-#include <QGLWidget>
+#include <qopengl.h>
+
+class QOpenGLFunctions;
+
 /**A virtual base class to give essential shader creation functionality to derived classes.*/
 class ShaderProgram
 {
@@ -12,6 +15,9 @@ protected:
 	/**Performs shader-specific setup. Override, but don't call directly.*/
 	virtual void prepare() {} //called from within load(...) function.
 public:
+	QOpenGLFunctions* mContext;
+	ShaderProgram(QOpenGLFunctions* context);
+
 	/**Returns the ID of the shader.*/
 	GLint id() const { return m_id; }
 	/**

@@ -3,8 +3,13 @@
 #include "camera.h"
 #include <memory>
 #include <qcolordialog.h>
+#include "camera.h"
+#include "openglbox.h"
+#include <sstream>
+#include "actionclass.h"
 
-Window::Window(int argc, char** argv) {}
+
+Window::Window() {}
 
 bool Window::initialise()
 {
@@ -21,75 +26,24 @@ bool Window::initialise()
 
 	connect(ui.ButtonGo, SIGNAL(pressed()), this, SLOT(shootEvent()));
 
+
 	ui.BoxProcessedformat->addItems({ "tiff", "bmp", "jpg", "png" });
 
 	mColourModel = std::unique_ptr<QStringListModel>(new QStringListModel(this));
 	ui.ListColours->setModel(mColourModel.get());
 	ui.ListColours->setEditTriggers(QAbstractItemView::NoEditTriggers);
-	if (!initialiseCamera())
+
+	
+	if (!(mActionClass = std::unique_ptr<ActionClass>(ActionClass::create())).get())
 		return false;
 
 	return true;
 }
 
-bool Window::initialiseCamera()
+
+Window* Window::create()
 {
-	//Initialise camera system
-	Inform("Initialising camera");
-	mCameraList = std::unique_ptr<CameraList> (CameraList::create(true));
-
-	if (!mCameraList.get())
-		return false;
-
-	if (mCameraList->ennumerate() == 0)
-	{
-		Error("No cameras found");
-		return false;
-	}
-
-	Camera& mainCamera = mCameraList->cameras[0];
-	if (!mainCamera.select())
-	{
-		Error("Could not select the main camera.");
-		return false;
-	}
-
-	//Set selectable values
-	std::vector<int> apList = mainCamera.ennumeratePossibleValues(Camera::EnnumerableProperties::Aperture);
-	std::vector<int> isList = mainCamera.ennumeratePossibleValues(Camera::EnnumerableProperties::ISO);
-	std::vector<int> shList = mainCamera.ennumeratePossibleValues(Camera::EnnumerableProperties::ShutterSpeed);
-
-	int currentAp = mainCamera.aperture();
-	int currentIs = mainCamera.iso();
-	int currentSh = mainCamera.shutterSpeed();
-
-	for (size_t i = 0; i < apList.size(); ++i)
-	{
-		ui.BoxAperture->addItem(Camera::apertureMappings[apList[i]].c_str());
-		if (apList[i] == currentAp)
-			ui.BoxAperture->setCurrentIndex(i);
-	}
-
-	for (size_t i = 0; i < isList.size(); ++i)
-	{
-		ui.BoxIso->addItem(Camera::isoMappings[isList[i]].c_str());
-		if (isList[i] == currentIs)
-			ui.BoxIso->setCurrentIndex(i);
-	}
-
-	for (size_t i = 0; i < shList.size(); ++i)
-	{
-		ui.BoxShutter->addItem(Camera::shutterSpeedMappings[shList[i]].c_str());
-		if (shList[i] == currentSh)
-			ui.BoxShutter->setCurrentIndex(i);
-	}
-
-	return true;
-}
-
-Window* Window::create(int argc, char** argv)
-{
-	Window* out = new Window(argc, argv);
+	Window* out = new Window();
 	if (!out)
 		return nullptr;
 	if (!out->initialise())
@@ -153,51 +107,54 @@ void Window::buttonDownEvent()
 
 void Window::changeIsoEvent(int value)
 {
-	Camera* camera = CameraList::instance()->activeCamera();
-	if (camera == nullptr)
-	{
-		Error("Invalid camera pointer at " + ToString(__LINE__));
-		return;
-	}
-
-	camera->iso(Camera::isoMappings[std::string(ui.BoxIso->itemText(value).toUtf8())]);
+	mActionClass->iso(value);
 }
 
 void Window::changeApertureEvent(int value)
 {
-	Camera* camera = CameraList::instance()->activeCamera();
-	if (camera == nullptr)
-	{
-		Error("Invalid camera pointer at " + ToString(__LINE__));
-		return;
-	}
-
-	camera->aperture(Camera::apertureMappings[std::string(ui.BoxAperture->itemText(value).toUtf8())]);
+	mActionClass->aperture();
 }
 
 void Window::changeShutterEvent(int value)
 {
-	Camera* camera = CameraList::instance()->activeCamera();
-	if (camera == nullptr)
-	{
-		Error("Invalid camera pointer at " + ToString(__LINE__));
-		return;
-	}
-
-	camera->shutterSpeed(Camera::shutterSpeedMappings[std::string(ui.BoxShutter->itemText(value).toUtf8())]);
+	mActionClass->shutter();
 }
 
 
 void Window::shootEvent()
 {
+	//Gather information
+	int delay = ui.SpinDelay->value();
+	auto startTime = std::chrono::steady_clock::now() + std::chrono::seconds(delay);
+
 	bool saveProcessed = ui.CheckSaveProcessed->isChecked();
 	bool saveRaw = ui.CheckSaveRaw->isChecked();
 
 	std::string processedExtension = ui.BoxProcessedformat->itemText(ui.BoxProcessedformat->currentIndex()).toUtf8();
 
-	int delay = ui.SpinDelay->value();
-
 	Inform(std::string("Shooting with saveProcessed=") + (saveProcessed ? "TRUE" : "FALSE") +
 		" saveRaw=" + (saveRaw ? "TRUE" : "FALSE") + " delay=" + ToString(delay) +
 		" extension=" + processedExtension);
+
+	QStringList colours = mColourModel->stringList();
+
+	//Disable QT window
+	
+	disableEvents();
+
+	mActionClass->shootSequence();
+
+	enableEvents();
+
+	
+}
+
+void Window::disableEvents()
+{
+	this->installEventFilter(&mFilter);
+}
+
+void Window::enableEvents()
+{
+	this->installEventFilter(this);
 }

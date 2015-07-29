@@ -1,8 +1,9 @@
 #include "openglbox.h"
-#include "imageshader.h"
 #include "camera.h"
+#include <qopengltexture.h>
+#include "imageshader.h"
 
-OpenGlBox* gOpenGlBox = nullptr;
+OpenGlBox* OpenGlBox::mInstance = nullptr;
 
 void OpenGlBox::initialiseQuad()
 {
@@ -33,17 +34,19 @@ void OpenGlBox::paintGL()
 	//If state is true, get the image from the camera and launch thread to process it.
 	//If it is false, retrieve the image and upload it.
 	static bool state = true;
+	bool error = false;
 
-	if (state)
+	//Using a loop to allow breaking
+	for (int i = 0; i < int(state); ++i)
 	{
 		//Get jpg
 		CameraList* cl = CameraList::instance();
 		if (cl == nullptr)
-			return;
+			break;
 
 		Camera* camera = cl->activeCamera();
 		if (camera == nullptr)
-			return;
+			break;
 
 		mVideoImageData.swap(camera->getLiveImage());
 
@@ -63,7 +66,7 @@ void OpenGlBox::paintGL()
 			return img;
 		});
 	}
-	else //Retrieve processed jpg and upload it
+	if(!state) //Retrieve processed jpg and upload it
 	{
 
 		try
@@ -78,7 +81,7 @@ void OpenGlBox::paintGL()
 			mVideoTexture = new QOpenGLTexture(*image);
 			delete image;
 		}
-		catch (const std::future_error& e)
+		catch (const std::future_error&)
 		{
 			//Likely called if the camera is not yet ready. Patience!
 			return;
@@ -100,7 +103,7 @@ void OpenGlBox::paintGL()
 
 OpenGlBox::OpenGlBox(QWidget* parent) : QOpenGLWidget(parent)
 {
-	gOpenGlBox = this;
+	mInstance = this;
 }
 
 void OpenGlBox::resizeGL(int width, int height)
@@ -115,7 +118,7 @@ void OpenGlBox::initializeGL()
 
 	initializeOpenGLFunctions();
 
-	mImageShader = new ImageShader();
+	mImageShader = new ImageShader(this);
 
 	initialiseQuad();
 	glClearColor(0, 0, 0, 1);
@@ -127,36 +130,36 @@ void OpenGlBox::initializeGL()
 		(
 		//Vertex shader
 		"#version 130\n"
-		"in vec4 vertuv;\n"
-		"uniform vec2 windowSize;\n"
-		"uniform vec2 imageSize;\n"
-		"out vec2 uv;\n"
-		"void main()\n"
-		"{\n"
+		"in vec4 vertuv;"
+		"uniform vec2 windowSize;"
+		"uniform vec2 imageSize;"
+		"out vec2 uv;"
+		"void main()"
+		"{"
 		"float windowAspect = windowSize.x/windowSize.y;"
-		"vec2 pos;\n"
+		"vec2 pos;"
 
-		"pos = vec2(vertuv.x, vertuv.y*(imageSize.x/imageSize.y));\n"
+		"pos = vec2(vertuv.x, vertuv.y*(imageSize.x/imageSize.y));"
 
-		"{\n"
-		"pos = vec2(pos.x, pos.y*windowAspect); \n"
-		"}\n"
+		"{"
+		"pos = vec2(pos.x, pos.y*windowAspect);"
+		"}"
 
 
 
-		"gl_Position = vec4(pos,0,1);\n"
-		"uv = vec2(vertuv.z, -vertuv.w);\n"
-		"}\n",
+		"gl_Position = vec4(pos,0,1);"
+		"uv = vec2(vertuv.z, -vertuv.w);"
+		"}",
 
 		//Fragment shader
 		"#version 130\n"
-		"out vec4 colour;\n"
-		"in vec2 uv;\n"
-		"uniform sampler2D diffuse;\n"
-		"void main()\n"
-		"{\n"
-		"colour = texture(diffuse, uv);\n"
-		"}\n"
+		"out vec4 colour;"
+		"in vec2 uv;"
+		"uniform sampler2D diffuse;"
+		"void main()"
+		"{"
+		"colour = texture(diffuse, uv);"
+		"}"
 		))
 	{
 		close();

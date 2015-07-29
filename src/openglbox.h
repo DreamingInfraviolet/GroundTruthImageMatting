@@ -1,20 +1,18 @@
 #pragma once
 #include <qopenglwidget.h>
 #include <QOpenGLFunctions>
-#include <qopengltexture.h>
 #include <qtimer.h>
 #include <future>
 #include "vertex.h"
 
-class OpenGlBox :public  QOpenGLWidget, protected QOpenGLFunctions
+class QOpenGLTexture;
+class ImageShader;
+
+class OpenGlBox :public  QOpenGLWidget, public QOpenGLFunctions
 {
 	Q_OBJECT
 
 private:
-
-	friend class ShaderProgram;
-	friend class ImageShader;
-
 	ImageShader* mImageShader = nullptr;
 	QOpenGLTexture* mVideoTexture = nullptr;
 	std::future<QImage*> mVideoImage; //Filled by worker thread
@@ -29,12 +27,18 @@ private:
 
 	void initialiseQuad();
 
+	static OpenGlBox* mInstance;
 public:
 	OpenGlBox(QWidget* parent);
 
 	~OpenGlBox();
 
-	void initializeGL();
+	static OpenGlBox* instance()
+	{
+		return mInstance;
+	}
+
+	void initializeGL() override;
 
 	void paintGL() override;
 
@@ -42,5 +46,3 @@ public:
 
 	void timerEvent(QTimerEvent *event);
 };
-
-extern OpenGlBox* gOpenGlBox;
