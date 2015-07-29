@@ -58,7 +58,6 @@ include_directories("${CMAKE_BINARY_DIR}")
 
 add_executable(
 				CameraControl # name of the executable
-				${UIS}
 					 ${SOURCES}
 					 ${GENERATED_SOURCES}
 			         ${HEADERS}

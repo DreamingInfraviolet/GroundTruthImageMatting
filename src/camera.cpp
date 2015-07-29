@@ -369,9 +369,13 @@ bool Camera::select()
 	//Create session
 	CHECK_EDS_ERROR(EdsOpenSession(mCameraRef), "Could not open camera session", false);
 
-	//Register selection
+	//Start live stream
+	int pc = kEdsEvfOutputDevice_PC;
+	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_Evf_OutputDevice, 0,
+									sizeof(kEdsEvfOutputDevice_PC),
+									&pc), "could not start live stream", false);
 
-	//Make change
+	//Register selection
 	cameraList->activeCamera(this);
 
 	return true;
@@ -619,11 +623,20 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 
 std::vector<unsigned char> Camera::getLiveImage()
 {
+
 	EdsStreamRef stream;
 	CHECK_EDS_ERROR(EdsCreateMemoryStream(0, &stream), "Could not create stream", {});
 
 	EdsEvfImageRef image;
-	CHECK_EDS_ERROR(EdsCreateEvfImageRef(stream, &image), "Could not create live stream image ref", {});
+	int err = EdsCreateEvfImageRef(stream, &image);
+
+	if (err != EDS_ERR_OK)
+	{
+		//If it's not ready, it is not unexpected behaviour.
+		if (err != EDS_ERR_OBJECT_NOTREADY)
+			Error("Could not create live stream image ref");
+		return{};
+	}
 
 	CHECK_EDS_ERROR(EdsDownloadEvfImage(mCameraRef, image), "Could not download live stream", {});
 

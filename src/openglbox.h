@@ -2,6 +2,8 @@
 #include <qopenglwidget.h>
 #include <QOpenGLFunctions>
 #include <qopengltexture.h>
+#include <qtimer.h>
+#include <future>
 #include "vertex.h"
 
 class OpenGlBox :public  QOpenGLWidget, protected QOpenGLFunctions
@@ -15,6 +17,9 @@ private:
 
 	ImageShader* mImageShader = nullptr;
 	QOpenGLTexture* mVideoTexture = nullptr;
+	std::future<QImage*> mVideoImage; //Filled by worker thread
+	std::vector<unsigned char> mVideoImageData; //Used by worker thread
+	QBasicTimer mBasicTimer;
 
 	struct
 	{
@@ -35,8 +40,7 @@ public:
 
 	void resizeGL(int width, int height) override;
 
-	void updateVideoTexture();
-
+	void timerEvent(QTimerEvent *event);
 };
 
 extern OpenGlBox* gOpenGlBox;

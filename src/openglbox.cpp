@@ -28,9 +28,71 @@ void OpenGlBox::paintGL()
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), NULL);
 	//
 
-	updateVideoTexture();
+	//Live stream:
+
+	//If state is true, get the image from the camera and launch thread to process it.
+	//If it is false, retrieve the image and upload it.
+	static bool state = true;
+
+	if (state)
+	{
+		//Get jpg
+		CameraList* cl = CameraList::instance();
+		if (cl == nullptr)
+			return;
+
+		Camera* camera = cl->activeCamera();
+		if (camera == nullptr)
+			return;
+
+		mVideoImageData.swap(camera->getLiveImage());
+
+		//Start processing on different thread
+		mVideoImage = std::async(std::launch::async, [this]() ->QImage*
+		{
+			if (this->mVideoImageData.size() == 0)
+				return nullptr;
+
+			QImage* img = new QImage();
+			if (!img->loadFromData(&this->mVideoImageData[0], this->mVideoImageData.size(), "JPG"))
+			{
+				delete img;
+				return nullptr;
+			}
+			
+			return img;
+		});
+	}
+	else //Retrieve processed jpg and upload it
+	{
+
+		try
+		{
+			QImage* image = mVideoImage.get();
+			if (!image)
+				return;
+
+			if (mVideoTexture)
+				delete mVideoTexture;
+
+			mVideoTexture = new QOpenGLTexture(*image);
+			delete image;
+		}
+		catch (const std::future_error& e)
+		{
+			//Likely called if the camera is not yet ready. Patience!
+			return;
+		}
+
+	}
+
+	state = !state;
+
 	if (mVideoTexture)
 		mVideoTexture->bind();
+
+	if (mVideoTexture)
+		mImageShader->setImageSize(mVideoTexture->height(), mVideoTexture->width());
 
 	//
 	glDrawArrays(GL_TRIANGLES, 0, 6);
@@ -44,6 +106,7 @@ OpenGlBox::OpenGlBox(QWidget* parent) : QOpenGLWidget(parent)
 void OpenGlBox::resizeGL(int width, int height)
 {
 	glViewport(0, 0, width, height);
+	mImageShader->setWindowSize(width, height);
 }
 
 void OpenGlBox::initializeGL()
@@ -55,7 +118,7 @@ void OpenGlBox::initializeGL()
 	mImageShader = new ImageShader();
 
 	initialiseQuad();
-	glClearColor(1, 0, 0, 1);
+	glClearColor(0, 0, 0, 1);
 	glClear(GL_COLOR_BUFFER_BIT);
 	glEnable(GL_BLEND);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
@@ -65,11 +128,24 @@ void OpenGlBox::initializeGL()
 		//Vertex shader
 		"#version 130\n"
 		"in vec4 vertuv;\n"
+		"uniform vec2 windowSize;\n"
+		"uniform vec2 imageSize;\n"
 		"out vec2 uv;\n"
 		"void main()\n"
 		"{\n"
-		"gl_Position = vec4(vertuv.x, vertuv.y, 0, 1);\n"
-		"uv = vec2(vertuv.z, vertuv.w);\n"
+		"float windowAspect = windowSize.x/windowSize.y;"
+		"vec2 pos;\n"
+
+		"pos = vec2(vertuv.x, vertuv.y*(imageSize.x/imageSize.y));\n"
+
+		"{\n"
+		"pos = vec2(pos.x, pos.y*windowAspect); \n"
+		"}\n"
+
+
+
+		"gl_Position = vec4(pos,0,1);\n"
+		"uv = vec2(vertuv.z, -vertuv.w);\n"
 		"}\n",
 
 		//Fragment shader
@@ -86,31 +162,18 @@ void OpenGlBox::initializeGL()
 		close();
 		return;
 	}
+
+	//Set fps (update every n milliseconds)
+	mBasicTimer.start(50, this);
+}
+
+void OpenGlBox::timerEvent(QTimerEvent *event)
+{
+	update();
 }
 
 OpenGlBox::~OpenGlBox()
 {
 	delete mImageShader;
 	delete mVideoTexture;
-}
-
-void OpenGlBox::updateVideoTexture()
-{
-	CameraList* cl = CameraList::instance();
-	if (cl == nullptr)
-		return;
-
-	Camera* camera = cl->activeCamera();
-	if (camera == nullptr)
-		return;
-
-	std::vector<unsigned char> imageData = camera->getLiveImage();
-
-	if (imageData.size() == 0)
-		return;
-
-	QImage img;
-	img.loadFromData(&imageData[0], imageData.size(), "JPG");
-	delete mVideoTexture;
-	mVideoTexture = new QOpenGLTexture(img);
 }

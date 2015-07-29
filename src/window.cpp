@@ -50,7 +50,7 @@ bool Window::initialiseCamera()
 	Camera& mainCamera = mCameraList->cameras[0];
 	if (!mainCamera.select())
 	{
-		Error("colould not select the main camera.");
+		Error("Could not select the main camera.");
 		return false;
 	}
 
@@ -59,14 +59,30 @@ bool Window::initialiseCamera()
 	std::vector<int> isList = mainCamera.ennumeratePossibleValues(Camera::EnnumerableProperties::ISO);
 	std::vector<int> shList = mainCamera.ennumeratePossibleValues(Camera::EnnumerableProperties::ShutterSpeed);
 
+	int currentAp = mainCamera.aperture();
+	int currentIs = mainCamera.iso();
+	int currentSh = mainCamera.shutterSpeed();
+
 	for (size_t i = 0; i < apList.size(); ++i)
+	{
 		ui.BoxAperture->addItem(Camera::apertureMappings[apList[i]].c_str());
+		if (apList[i] == currentAp)
+			ui.BoxAperture->setCurrentIndex(i);
+	}
 
 	for (size_t i = 0; i < isList.size(); ++i)
+	{
 		ui.BoxIso->addItem(Camera::isoMappings[isList[i]].c_str());
+		if (isList[i] == currentIs)
+			ui.BoxIso->setCurrentIndex(i);
+	}
 
 	for (size_t i = 0; i < shList.size(); ++i)
+	{
 		ui.BoxShutter->addItem(Camera::shutterSpeedMappings[shList[i]].c_str());
+		if (shList[i] == currentSh)
+			ui.BoxShutter->setCurrentIndex(i);
+	}
 
 	return true;
 }
