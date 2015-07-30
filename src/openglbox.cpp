@@ -2,6 +2,7 @@
 #include "camera.h"
 #include <qopengltexture.h>
 #include "imageshader.h"
+#include "io.h"
 
 OpenGlBox* OpenGlBox::mInstance = nullptr;
 
@@ -11,7 +12,7 @@ void OpenGlBox::initialiseQuad()
 	mQuad.quad[1] = Vertex2D(1.f, -1.f, 1.f, 0.f);
 	mQuad.quad[2] = Vertex2D(-1.f, 1.f, 0.f, 1.f);
 	mQuad.quad[3] = Vertex2D(-1.f, 1.f, 0.f, 1.f),
-		mQuad.quad[4] = Vertex2D(1.f, -1.f, 1.f, 0.f);
+	mQuad.quad[4] = Vertex2D(1.f, -1.f, 1.f, 0.f);
 	mQuad.quad[5] = Vertex2D(1.f, 1.f, 1.f, 1.f);
 	mQuad.VBO = ~0u;
 	glGenBuffers(1, &mQuad.VBO);
@@ -23,34 +24,36 @@ void OpenGlBox::initialiseQuad()
 
 void OpenGlBox::paintGL()
 {
+	//Prepare
 	glClear(GL_COLOR_BUFFER_BIT);
 	mImageShader->set();
 	glEnableVertexAttribArray(0);
 	glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(Vertex2D), NULL);
-	//
 
-	//Live stream:
+	//Live stream
 
 	//If state is true, get the image from the camera and launch thread to process it.
 	//If it is false, retrieve the image and upload it.
+	//An intermediary variable, thisState, is used in case of early return. 
 	static bool state = true;
-	bool error = false;
+	int thisState = state;
+	state = !state;
 
-	//Using a loop to allow breaking
-	for (int i = 0; i < int(state); ++i)
+	if (thisState)
 	{
-		//Get jpg
+		//Check camera
 		CameraList* cl = CameraList::instance();
 		if (cl == nullptr)
-			break;
+			return;
 
 		Camera* camera = cl->activeCamera();
 		if (camera == nullptr)
-			break;
+			return;
 
+		//Get jpg
 		mVideoImageData.swap(camera->getLiveImage());
 
-		//Start processing on different thread
+		//Launch processing thread
 		mVideoImage = std::async(std::launch::async, [this]() ->QImage*
 		{
 			if (this->mVideoImageData.size() == 0)
@@ -62,13 +65,11 @@ void OpenGlBox::paintGL()
 				delete img;
 				return nullptr;
 			}
-			
 			return img;
 		});
 	}
-	if(!state) //Retrieve processed jpg and upload it
+	if(!thisState) //Retrieve processed jpg and update mVideoImage.
 	{
-
 		try
 		{
 			QImage* image = mVideoImage.get();
@@ -89,15 +90,13 @@ void OpenGlBox::paintGL()
 
 	}
 
-	state = !state;
-
+	//If there is a valid image object, show it.
 	if (mVideoTexture)
+	{
 		mVideoTexture->bind();
+		mImageShader->setImageSize(mVideoTexture->width(), mVideoTexture->height());
+	}
 
-	if (mVideoTexture)
-		mImageShader->setImageSize(mVideoTexture->height(), mVideoTexture->width());
-
-	//
 	glDrawArrays(GL_TRIANGLES, 0, 6);
 }
 
@@ -134,21 +133,12 @@ void OpenGlBox::initializeGL()
 		"uniform vec2 windowSize;"
 		"uniform vec2 imageSize;"
 		"out vec2 uv;"
+
 		"void main()"
 		"{"
-		"float windowAspect = windowSize.x/windowSize.y;"
-		"vec2 pos;"
-
-		"pos = vec2(vertuv.x, vertuv.y*(imageSize.x/imageSize.y));"
-
-		"{"
-		"pos = vec2(pos.x, pos.y*windowAspect);"
-		"}"
-
-
-
-		"gl_Position = vec4(pos,0,1);"
-		"uv = vec2(vertuv.z, -vertuv.w);"
+			"vec2 pos = vec2(vertuv.x, (vertuv.y*(imageSize.y/imageSize.x))*(windowSize.x/windowSize.y));"
+			"gl_Position = vec4(pos,0,1);"
+			"uv = vec2(vertuv.z, -vertuv.w);"
 		"}",
 
 		//Fragment shader
@@ -156,9 +146,10 @@ void OpenGlBox::initializeGL()
 		"out vec4 colour;"
 		"in vec2 uv;"
 		"uniform sampler2D diffuse;"
+
 		"void main()"
 		"{"
-		"colour = texture(diffuse, uv);"
+			"colour = texture(diffuse, uv);"
 		"}"
 		))
 	{
@@ -167,7 +158,9 @@ void OpenGlBox::initializeGL()
 	}
 
 	//Set fps (update every n milliseconds)
-	mBasicTimer.start(50, this);
+	mBasicTimer.start(OPENGL_BOX_TICK, this);
+
+	Inform("OpenGL ready");
 }
 
 void OpenGlBox::timerEvent(QTimerEvent *event)
@@ -177,6 +170,12 @@ void OpenGlBox::timerEvent(QTimerEvent *event)
 
 OpenGlBox::~OpenGlBox()
 {
+	mInstance = nullptr;
 	delete mImageShader;
 	delete mVideoTexture;
+}
+
+OpenGlBox* OpenGlBox::instance()
+{
+	return mInstance;
 }

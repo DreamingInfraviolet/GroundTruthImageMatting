@@ -7,7 +7,7 @@ file(GLOB SOURCES
 )
 
 file(GLOB HEADERS
-	".h")
+	"*.h")
 
 set(MOCS window.h openglbox.h)
 set(UIS mainui.ui)
@@ -57,12 +57,16 @@ target_link_libraries(CameraControl ${OPENGL_LIBRARIES})
 include_directories( ${OPENGL_INCLUDE_DIRS}  ${GLUT_INCLUDE_DIRS} )
 
 #Add sfml
+#set(SFML_ROOT "${CMAKE_SOURCE_DIR}/third_party/sfml_git/")
+#set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/third_party/sfml_git/cmake/Modules" ${CMAKE_MODULE_PATH})
+#find_package(SFML 2 REQUIRED system window graphics)
+#include_directories(${SFML_INCLUDE_DIR})
+#target_link_libraries(CameraControl ${SFML_LIBRARIES})
 
-set(SFML_ROOT "${CMAKE_SOURCE_DIR}/third_party/sfml/")
-set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/third_party/sfml/cmake/Modules" ${CMAKE_MODULE_PATH})
-find_package(SFML 2 REQUIRED system window graphics)
-include_directories(${SFML_INCLUDE_DIR})
-target_link_libraries(CameraControl ${SFML_LIBRARIES})
+#Add SDL
+target_link_libraries(CameraControl "${PROJECT_SOURCE_DIR}/third_party/sdl2/lib/x86/SDL2main.lib"
+									"${PROJECT_SOURCE_DIR}/third_party/sdl2/lib/x86/SDL2.lib")
+include_directories("${PROJECT_SOURCE_DIR}/third_party/sdl2/include")
 
 #Add canon API
 target_link_libraries(CameraControl "${PROJECT_SOURCE_DIR}/third_party/canon/EDSDK/Library/EDSDK.lib")

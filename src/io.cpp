@@ -4,12 +4,12 @@
 
 void Error(const std::string& msg)
 {
-	std::cerr<<"Error: " <<msg<<"\n";
+	std::cerr << "ERROR: " << msg << "\n";
 }
 
 void Warning(const std::string& msg)
 {
-	std::cout<<"Warning: " <<msg<<"\n";
+	std::cout << "Warning: " << msg << "\n";
 }
 
 void Inform(const std::string& msg)
@@ -26,10 +26,12 @@ std::string appendNameToPath(const std::string& name, const std::string& path)
 	if (path.back() == '\\' || path.back() == '/')
 		return path + name;
 	else
+#ifdef _WIN32
+		return path + "\\" + name;
+#else
 		return path + "/" + name;
+#endif
 }
-
-
 
 static std::map<long, const char*> edsErrorMapping
 {

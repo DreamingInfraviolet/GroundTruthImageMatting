@@ -1,7 +1,6 @@
 #pragma once
-
-#include <mutex>
 #include <QtGui>
+#include <memory>
 #include "ui_mainui.h"
 
 class ActionClass;
@@ -12,58 +11,73 @@ class ActionClass;
 * */
 class Window : public QMainWindow
 {
-	Q_OBJECT
+    Q_OBJECT
 private:
 
-	/**
-	* Main constructor creating the window. Sets the state to idle.
-	* Hidden: use create().
-	* */
-	Window();
+    /** Performs global initialisation. Returns true upon success. */
+    bool initialise();
 
-	/** Performs general initialisation. Returns true upon success. */
-	bool initialise();
+    //Auto generated UI object
+    Ui::MainWindow ui;
 
-	/** Initialises the camera system and selects the first camera upon success. */
-	bool initialiseCamera();
+    //Used to control the colour list
+    std::unique_ptr<QStringListModel> mColourModel;
+    
+    //The internal action class.
+    std::unique_ptr<ActionClass> mActionClass;
 
-	Ui::MainWindow ui;
-	std::unique_ptr<QStringListModel> mColourModel; //Used to control the colour list
-	
-	std::unique_ptr<ActionClass> mActionClass;
+    //This is used to disable the QT event system when SFML is used.
+    //Otherwise SFML can not function properly.
+    class EventFilter : public QObject
+    {
+    public:
+        bool eventFilter(QObject * watched, QEvent * event) override { return true; }
+    } mFilter;
 
-	//This is used to disable the QT event system when SFML is used.
-	class EventFilter : public QObject
-	{
-	public:
-		EventFilter(){}
-		bool eventFilter(QObject * watched, QEvent * event) override { return true; }
-	} mFilter;
+    //A static pointer to the current window.
+    static Window* sWindow;
+
+	/** Updates colours.txt with the currently selected colours. */
+	void updateColourFile();
 public:
 
-	/**
-	* Creates a new window, or returns null upon failure.
-	* */
-	static Window* create();
+    /** Creates a new window. Returns null if failed or if a window already exists. */
+    static Window* create();
 
-	/**
-	* Destructor cleaning up resources.
-	*/
-	~Window();
+    /** Deregisters the window. */
+    ~Window();
 
-	void disableEvents();
-	void enableEvents();
+    /** Disables the QT event system. */
+    void disableEvents();
 
-signals:
-	void showOther();
+    /** Enables the QT event system. */
+    void enableEvents();
 
-	public slots:
-	void buttonAddEvent();
-	void buttonRemoveEvent();
-	void buttonUpEvent();
-	void buttonDownEvent();
-	void changeIsoEvent(int value);
-	void changeApertureEvent(int value);
-	void changeShutterEvent(int value);
-	void shootEvent();
+    /** Returns the current instance of the window. */
+    static Window* instance();
+
+    public slots:
+    /** Adds a new colour. */
+    void buttonAddEvent();
+
+    /** Removes a selected colour. */
+    void buttonRemoveEvent();
+
+    /** Brings the selected colour up. */
+    void buttonUpEvent();
+
+    /** Brings the selected colour down. */
+    void buttonDownEvent();
+
+    /** Changes the camera ISO. */
+    void changeIsoEvent(int value);
+
+    /** Changes the camera perture size. */
+    void changeApertureEvent(int value);
+
+    /** Changes the shutter duration. */
+    void changeShutterEvent(int value);
+
+    /** Takes and saves a sequence of images with the given parameters. */
+    void shootEvent();
 };

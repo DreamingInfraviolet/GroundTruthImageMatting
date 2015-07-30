@@ -1,6 +1,4 @@
 #pragma once
-#include <initializer_list>
-#include <string>
 #include <map>
 #include <cassert>
 
@@ -9,7 +7,8 @@
 * seems arbitrary, so these classes act to provide a simple mechanism for two-way mapping:
 * To map camera property values to text,
 * To map text to camera property values.
-* Implemented using two std::maps, optimised for lookup performance.
+* Can be used with templates for different used.
+* Implemented using two std::maps, thus optimised for lookup performance.
 * Asserts false if mapping not found.
 * */
 template <class LEFT, class RIGHT>

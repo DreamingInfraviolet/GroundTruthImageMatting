@@ -5,21 +5,13 @@
 #include "EDSDK.h"
 #include "camera.h"
 #include "io.h"
-#include "compatabilitylayer.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-//Conditional camera inform: Inform(msg) is called if mInformOutput is true.
-#define CCINFORM(msg) {if(mInformOutput) Inform(msg);}
-
-
 
 //Definition of basic static types
-bool		CameraList::mExists = false;
 CameraList* CameraList::mInstance = nullptr;
 Camera*		CameraList::mActiveCamera = nullptr;
-unsigned long long CameraList::camerasCreationRecord = 0;
-
 
 //Definition of property mappings
 const PropertyMap Camera::isoMappings =
@@ -189,20 +181,18 @@ const PropertyMap Camera::shutterSpeedMappings =
 
 
 
-CameraList::CameraList(bool debugOutput, unsigned long long id)
+CameraList::CameraList()
 {
-	CCINFORM(std::string("Creating camera list with ID ") + ToString(id));
-	mInformOutput = debugOutput;
-	mSessionID = id;
+	Inform("Creating camera list");
 }
 
-CameraList* CameraList::create(bool debugOutput)
+CameraList* CameraList::create()
 {
-	if (mExists)
+	if (mInstance != nullptr)
 		return nullptr;
 	else
 	{
-		CameraList* cl = new CameraList(debugOutput, time(nullptr) + (camerasCreationRecord++));
+		CameraList* cl = new CameraList();
 
 		if (!cl)
 			return nullptr;
@@ -213,7 +203,6 @@ CameraList* CameraList::create(bool debugOutput)
 			return nullptr;
 		}
 
-		mExists = true;
 		mInstance = cl;
 		return cl;
 	}
@@ -231,11 +220,10 @@ Camera * CameraList::activeCamera()
 
 CameraList::~CameraList()
 {
-	CCINFORM("Shutting down CameraList.");
+	Inform("Shutting down CameraList.");
 
 	cameras.clear();
 	mInstance = nullptr;
-	mExists = false;
 
 	WARN_EDS_ERROR(EdsTerminateSDK(), "Error shutting down the SDK");
 }
@@ -251,15 +239,9 @@ void CameraList::activeCamera(Camera * cam)
 	mActiveCamera = cam;
 }
 
-unsigned long long CameraList::sessionID()
-{
-	return mSessionID;
-}
-
-
 int CameraList::ennumerate()
 {
-	CCINFORM("Ennumerating cameras.");
+	Inform("Ennumerating cameras.");
 
 	EdsCameraListRef cameraList = NULL;
 	CHECK_EDS_ERROR(EdsGetCameraList(&cameraList), "Could not populate the Canon camera list", -1);
@@ -277,16 +259,19 @@ int CameraList::ennumerate()
 			std::string("Could not retrieve camera [") + ToString(iCamera) + "]", -1);
 
 		EdsDeviceInfo* info = new EdsDeviceInfo();
-		CHECK_EDS_ERROR(EdsGetDeviceInfo(camera, info), "Could not get camera info", -1);
+		CHECK_EDS_ERROR_ACT(EdsGetDeviceInfo(camera, info), "Could not get camera info", -1,
+			delete info;);
 
 		//Create camera object
-		cameras.emplace_back(mInformOutput, camera, info);
+		cameras.emplace_back(camera, info);
 
 		//Register object event handler for camera
 		CHECK_EDS_ERROR(EdsSetObjectEventHandler(
 			camera, kEdsObjectEvent_All,
 			&Camera::objectCallback,
 			&cameras.back()), "Could not set photo download event handler", -1);
+
+		Inform(std::string("Found Camera ") + cameras.back().name());
 
 	}
 
@@ -297,16 +282,13 @@ int CameraList::ennumerate()
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-Camera::Camera(bool debugOutput, EdsCameraRef ref, EdsDeviceInfo* info)
+Camera::Camera(EdsCameraRef ref, EdsDeviceInfo* info)
 {
-	mInformOutput = debugOutput;
 	mDeviceInfo = info;
 	mCameraRef = ref;
 
 	mReadyToTakePhoto = new std::atomic<bool>();
 	*mReadyToTakePhoto = true;
-
-	CCINFORM(std::string("Found Camera ") + name());
 }
 
 
@@ -318,25 +300,6 @@ Camera::~Camera()
 	if (mDeviceInfo)
 		delete mDeviceInfo;
 	EdsRelease(mCameraRef);
-}
-
-bool Camera::available()
-{
-	//Try to select the camera. If it fails, return false.
-
-	//if no CameraList instance
-	CameraList* cameraList = CameraList::instance();
-	if (cameraList == nullptr)
-	{
-		Error("Can not select a camera with no valid CameraList.");
-		return false;
-	}
-
-	Camera* activeCamera = cameraList->activeCamera();
-	bool canSelect = select();
-	if (activeCamera)
-		activeCamera->select();
-	return canSelect;
 }
 
 bool Camera::readyToShoot()
@@ -361,7 +324,7 @@ bool Camera::select()
 	if (activeCamera != nullptr)
 		activeCamera->deselect();
 
-	CCINFORM(std::string("Selecting camera ") + name());
+	Inform(std::string("Selecting camera ") + name());
 
 	//Lock UI
 	EdsSendStatusCommand(mCameraRef, kEdsCameraStatusCommand_UILock, 0);
@@ -395,7 +358,7 @@ void Camera::deselect()
 	Camera* activeCamera = cameraList->activeCamera();
 	if (activeCamera == this)
 	{
-		CCINFORM(std::string("Deselecting camera ") + name());
+		Inform(std::string("Deselecting camera ") + name());
 
 		//Close session
 		WARN_EDS_ERROR(EdsCloseSession(mCameraRef), "Could not close camera session");
@@ -421,15 +384,15 @@ std::vector<int> Camera::ennumeratePossibleValues(EnnumerableProperties ep)
 	switch (ep)
 	{
 	case EnnumerableProperties::Aperture:
-		CCINFORM("Ennumerating iso values.");
+		Inform("Ennumerating aperture values.");
 		propertyCode = kEdsPropID_Av;
 		break;
 	case EnnumerableProperties::ISO:
-		CCINFORM("Ennumerating iso values.");
+		Inform("Ennumerating iso values.");
 		propertyCode = kEdsPropID_ISOSpeed;
 		break;
 	case EnnumerableProperties::ShutterSpeed:
-		CCINFORM("Ennumerating iso values.");
+		Inform("Ennumerating shutter values.");
 		propertyCode = kEdsPropID_Tv;
 		break;
 	default:
@@ -451,7 +414,7 @@ std::vector<int> Camera::ennumeratePossibleValues(EnnumerableProperties ep)
 
 bool Camera::iso(int v)
 {
-	CCINFORM(std::string("Setting iso value ") + ToHexString(v) + " for " + name());
+	Inform(std::string("Setting iso value ") + ToHexString(v) + " for " + name());
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_ISOSpeed, 0, sizeof(EdsInt32), &v), "Could not set iso property.", false);
 	return true;
 }
@@ -460,13 +423,13 @@ int Camera::iso()
 {
 	int v;
 	CHECK_EDS_ERROR(EdsGetPropertyData(mCameraRef, kEdsPropID_ISOSpeed, 0, sizeof(EdsInt32), &v), "Could not get iso property.", -1);
-	CCINFORM(std::string("Retrieving iso value ") + ToHexString(v) + " for " + name());
+	Inform(std::string("Retrieving iso value ") + ToHexString(v) + " for " + name());
 	return v;
 }
 
 bool Camera::shutterSpeed(int v)
 {
-	CCINFORM(std::string("Setting shutter speed ") + ToString(v) + " for " + name());
+	Inform(std::string("Setting shutter speed ") + ToString(v) + " for " + name());
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_Tv, 0, sizeof(EdsInt32), &v), "Could not set shutter speed property.", false);
 	return true;
 }
@@ -475,14 +438,14 @@ int Camera::shutterSpeed()
 {
 	int v;
 	CHECK_EDS_ERROR(EdsGetPropertyData(mCameraRef, kEdsPropID_Tv, 0, sizeof(EdsInt32), &v), "Could not get shutter speed property.", -1);
-	CCINFORM(std::string("Retrieving shutter speed ") + ToString(v) + " for " + name());
+	Inform(std::string("Retrieving shutter speed ") + ToString(v) + " for " + name());
 	return v;
 }
 
 
 bool Camera::aperture(int v)
 {
-	CCINFORM(std::string("Setting aperture value ") + ToString(v) + " for " + name());
+	Inform(std::string("Setting aperture value ") + ToString(v) + " for " + name());
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_Av, 0, sizeof(EdsInt32), &v), "Could not set aperture property.", false);
 	return true;
 }
@@ -491,13 +454,13 @@ int Camera::aperture()
 {
 	int v;
 	CHECK_EDS_ERROR(EdsGetPropertyData(mCameraRef, kEdsPropID_Av, 0, sizeof(EdsInt32), &v), "Could not get aperture property.", -1);
-	CCINFORM(std::string("Retrieving aperture value ") + ToString(v) + " for " + name());
+	Inform(std::string("Retrieving aperture value ") + ToString(v) + " for " + name());
 	return v;
 }
 
 bool Camera::shoot()
 {	
-	CCINFORM("Shooting picture...");
+	Inform("Shooting picture");
 
 	//While we are having message loop issues, just return false for now if not ready:
 	if (!*mReadyToTakePhoto)
@@ -521,28 +484,10 @@ bool Camera::shoot()
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_SaveTo, 0, sizeof(EdsInt32), &saveToComputer),
 		"Could not set camera save mode.", false);
 
-	/* //Is this needed? Disabling for now.
-	//Set space remaining on computer
-	EdsCapacity capacity;
-	capacity.bytesPerSector = 0;
-	capacity.numberOfFreeClusters = 0;
-	capacity.reset = 0;
-	std::unique_ptr<DiskFreeSpace> dfs (FindDiskFreeSpace(directory.c_str()));
-	if (dfs == nullptr)
-		return false;
-	else
-	{
-		capacity.bytesPerSector = dfs->bytesPerSector;
-		capacity.numberOfFreeClusters = dfs->numberOfFreeClusters;
-		capacity.reset = 1;
-	}
-	EdsSetCapacity(mCameraRef, capacity);
-	*/
-
-
 	//Send shoot command and force further shoot commands to wait
 	*mReadyToTakePhoto = false;
-	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_TakePicture, 0), "Could not capture an image", false);
+	CHECK_EDS_ERROR_ACT(EdsSendCommand(mCameraRef, kEdsCameraCommand_TakePicture, 0), "Could not capture an image", false,
+		*mReadyToTakePhoto = true;);
 
 	//Now the user must wait for the object callback to download the image.
 
@@ -558,7 +503,8 @@ ImageRaw Camera::retrieveLastImage()
 
 bool Camera::resetShutdownTimer()
 {
-	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_ExtendShutDownTimer, 0), "Could not reset shutdown timer", false);
+	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_ExtendShutDownTimer, 0),
+		"Could not reset shutdown timer", false);
 	return true;
 }
 
@@ -584,26 +530,33 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 
 		//Get info on camera memory directory
 		EdsDirectoryItemInfo dii;
-		CHECK_EDS_ERROR(EdsGetDirectoryItemInfo(inRef, &dii), "Could not retrieve directory item info", err);
+		CHECK_EDS_ERROR_ACT(EdsGetDirectoryItemInfo(inRef, &dii), "Could not retrieve directory item info", err,
+			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
 
 		//Create stream
 		EdsStreamRef stream = nullptr;
-		CHECK_EDS_ERROR(EdsCreateMemoryStream(dii.size, &stream), "Failed to create image stream", err);
+		CHECK_EDS_ERROR_ACT(EdsCreateMemoryStream(dii.size, &stream), "Failed to create image stream", err,
+			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
 
 		//Download
-		CHECK_EDS_ERROR(EdsDownload(inRef, dii.size, stream), "Could not download image", err);
-		CHECK_EDS_ERROR(EdsDownloadComplete(inRef), "Could not send download success confirmation", err);
-
+		CHECK_EDS_ERROR_ACT(EdsDownload(inRef, dii.size, stream), "Could not download image", err,
+			EdsRelease(stream); EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
+		CHECK_EDS_ERROR_ACT(EdsDownloadComplete(inRef), "Could not send download success confirmation", err,
+			EdsRelease(stream); EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
 
 		//Get image and information about it
 		EdsImageRef image;
-		CHECK_EDS_ERROR(EdsCreateImageRef(stream, &image), "Could not retrieve image ref", err);
+		CHECK_EDS_ERROR_ACT(EdsCreateImageRef(stream, &image), "Could not retrieve image ref", err,
+			EdsRelease(stream); *camera->mReadyToTakePhoto = true;);
 
 		EdsImageInfo imageInfo;
-		CHECK_EDS_ERROR(EdsGetImageInfo(image, kEdsImageSrc_RAWFullView, &imageInfo), "Could not retrieve image info", err);
+		CHECK_EDS_ERROR_ACT(EdsGetImageInfo(image, kEdsImageSrc_RAWFullView, &imageInfo),
+			"Could not retrieve image info", err,
+			EdsRelease(stream); EdsRelease(image); *camera->mReadyToTakePhoto = true;);
 
 		void* imageData;
-		CHECK_EDS_ERROR(EdsGetPointer(stream, &imageData), "Could not retrieve the image pointer", err);
+		CHECK_EDS_ERROR_ACT(EdsGetPointer(stream, &imageData), "Could not retrieve the image pointer", err,
+			EdsRelease(stream); EdsRelease(image); *camera->mReadyToTakePhoto = true;);
 
 		ImageRaw img = ImageRaw(image, imageData, dii.size, imageInfo.width, imageInfo.height);
 		camera->mLastImage = std::move(img);
@@ -628,29 +581,35 @@ std::vector<unsigned char> Camera::getLiveImage()
 	CHECK_EDS_ERROR(EdsCreateMemoryStream(0, &stream), "Could not create stream", {});
 
 	EdsEvfImageRef image;
-	int err = EdsCreateEvfImageRef(stream, &image);
+	CHECK_EDS_ERROR_ACT(EdsCreateEvfImageRef(stream, &image), "Could not create image reference", {},
+		EdsRelease(stream));
 
+
+	int err = EdsDownloadEvfImage(mCameraRef, image);
 	if (err != EDS_ERR_OK)
 	{
 		//If it's not ready, it is not unexpected behaviour.
 		if (err != EDS_ERR_OBJECT_NOTREADY)
-			Error("Could not create live stream image ref");
+			Error("Could not download live stream");
+		EdsRelease(stream);
+		EdsRelease(image);
 		return{};
 	}
 
-	CHECK_EDS_ERROR(EdsDownloadEvfImage(mCameraRef, image), "Could not download live stream", {});
-
 	void* data;
-	CHECK_EDS_ERROR(EdsGetPointer(stream, (EdsVoid**)& data), "Could not get image pointer", {});
+	CHECK_EDS_ERROR_ACT(EdsGetPointer(stream, (EdsVoid**)& data), "Could not get image pointer", {},
+		EdsRelease(stream); EdsRelease(image););
 
 	EdsUInt32 dataLen;
-	CHECK_EDS_ERROR(EdsGetLength(stream, &dataLen), "Could not get stream size", {});
+	CHECK_EDS_ERROR_ACT(EdsGetLength(stream, &dataLen), "Could not get stream size", {},
+		EdsRelease(stream); EdsRelease(image););
 
 	std::vector<unsigned char> out;
 	out.resize(dataLen);
 	memcpy(&out[0], data, dataLen);
 
 	EdsRelease(stream);
+	EdsRelease(image);
 
 	return out;
 }

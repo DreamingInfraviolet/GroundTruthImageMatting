@@ -1,6 +1,7 @@
 #include "shaderprogram.h"
 #include <fstream>
 #include <qopenglfunctions.h>
+#include "io.h"
 
 bool ShaderProgram::validate()
 {

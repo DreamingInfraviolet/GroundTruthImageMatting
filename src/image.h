@@ -1,28 +1,65 @@
 #pragma once
-
-/**
-* A base class defining the basics of an image.
-* */
-
 #include <vector>
-#include <tuple>
 #include "EDSDKTypes.h"
 
-class Image
+/** A specialised class to represent a .cr2 image object. */
+class ImageRaw
 {
-protected:
+private:
 	std::vector<unsigned char> mData;
 	int mHeight = 0, mWidth = 0;
 	bool mFailed = false;
-public:
 
-	virtual ~Image() {}
+    /** Copies values into the class that can not be moved. */
+    void copyNonMovable(const ImageRaw& img);
+
+    //The Eds image reference object.
+    EdsImageRef mImageRef = nullptr;
+
+public:
+    /** A trivial constructor. */
+    ImageRaw();
+
+    /**
+    * Creates the image from memory, copying from the inputted source.
+    * The memory must describe a valid .cr2 object.
+    * @param imageRef the EdsImageRef object of the image.
+    * @param data A pointer to the data to be copied.
+    * @dataSize The number of bytes that constitute the data.
+    * @width The width of the image.
+    * @height The height of the image.
+    * */
+    ImageRaw(EdsImageRef imageRef, const void* data, size_t dataSize, int width, int height);
+
+	/** Clears the image. */
+	~ImageRaw();
+
+    /** Creates a failed empty image. */
+    static ImageRaw getFailed();
+
+    /** Move constructor to help performance */
+    ImageRaw(ImageRaw&& img);
+
+    /** Copy constructor. */
+    ImageRaw(const ImageRaw& img);
+
+    /** Move operator. */
+    ImageRaw& operator = (ImageRaw&& img);
+
+    /** Copy operator. */
+    ImageRaw& operator = (ImageRaw& img);
+
+    /** Clears the image, releasing the Eds image reference object. */
+    void clear();
+
+    /** Saves the image in a format that can be handled by OpenCV. */
+	bool saveProcessed(const std::string& path);
+
+    /** Saves the .cr2 image to the specified path. */
+	bool saveToFile(const std::string& path);
 
 	/** Returns the size of the memory array in bytes. */
 	size_t getDataLength();
-
-	/** Frees image memory. */
-	virtual void clear();
 
 	/** Returns whether an image operation failed. */
 	bool failed();
@@ -35,94 +72,4 @@ public:
 
 	/** Returns the width. */
 	int width();
-
-	/** Loads an image from a path indicated by the argument. */
-	virtual bool loadFromFile(const char* path) = 0;
-
-	/** Saves the image to a path indicated by the argument. */
-	virtual bool saveToFile(const char* path) = 0;
-};
-
-class ImageRGBA;
-
-/** A class to represent a RAW cr2 image. */
-class ImageRaw : public Image
-{
-private:
-
-	/** Copies values into the class that can not be moved.*/
-	void copyNonMovable(const ImageRaw& img);
-
-	/**
-	* Converts an array of RGB values into an array of RGBA values, with the given alpha.
-	* */
-	std::vector<unsigned char> ImageRaw::rgbToRgba(const std::vector<unsigned char>& rgb, unsigned char alpha);
-
-	EdsImageRef mImageRef = nullptr;
-
-
-public:
-	/** A trivial constructor. */
-	ImageRaw();
-
-	/** Creates the image from memory, copying from the inputted source. */
-	ImageRaw(EdsImageRef imageRef, const void* data, size_t dataSize, int width, int height);
-
-	/** Destructor. Class clear() */
-	~ImageRaw();
-
-	/** Creates a failed empty image. */
-	static ImageRaw getFailed();
-
-	/**Move constructor to help performance */
-	ImageRaw(ImageRaw&& img);
-
-	/** Copy constructor. */
-	ImageRaw(const ImageRaw& img);
-
-	/** Move operator. */
-	ImageRaw& operator = (ImageRaw&& img);
-
-	/** Copy operator. */
-	ImageRaw& operator = (ImageRaw& img);
-
-	virtual void clear() override;
-
-	/**
-	* Creates a RGBA image from the class. The Canon SDK is assumed to be initialised.
-	* @return The RGBA image. If failed, the resulting image's failed() will return true.
-	* */
-	ImageRGBA asRGBA();
-
-	/** Loading is unsupported. Do not use this! */
-	virtual bool loadFromFile(const char* path) override;
-
-	/** Overriden saving. */
-	virtual bool saveToFile(const char* path) override;
-};
-
-/** A class to represent an RGBA RGBA image. Supports Alpha. */
-class ImageRGBA : public Image
-{
-public:
-	/** A trivial constructor. */
-	ImageRGBA();
-
-	/** Loads the specified image. */
-	ImageRGBA::ImageRGBA(const char* path);
-
-	/** Creates the image from memory, copying from the inputted source. */
-	ImageRGBA(const void* data, size_t dataSize, int width, int height);
-
-	/** Creates the image from the rgba vector, leaving the initial vector in an invalid state. */
-	ImageRGBA(std::vector<unsigned char>& vector, int width, int height);
-
-	/** Creates a failed empty image. */
-	static ImageRGBA getFailed();
-
-	/** Loads the specified image. */
-	virtual bool loadFromFile(const char* path) override;
-
-	/** Saves the image as TGA. */
-	virtual bool saveToFile(const char* path) override;
 };

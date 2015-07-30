@@ -1,5 +1,5 @@
 #include "imageshader.h"
-#include "openglbox.h"
+#include <QOpenGLFunctions>
 
 void ImageShader::prepare()
 {

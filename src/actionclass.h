@@ -1,176 +1,87 @@
 #pragma once
+#include <memory>
+#include <vector>
+#include "camera.h"
+#include <qstringlist.h>
+#include <chrono>
+
+namespace sf { class RenderWindow; }
 
 /**
 * This class is used by the Window to perform general processing unrelated to the interface.
+* Tasks include managing the camera, taking picture sequences, etc.
 * */
+
 class CameraList;
+
 class ActionClass
 {
-	ActionClass();
-	bool initialise();
-	bool initialiseCameraSystem();
+    /** Initialises the class, returning true upon success. */
+    bool initialise();
 
-	std::unique_ptr<CameraList> mCameraList;
+    //
+    std::unique_ptr<CameraList> mCameraList;
 
+    //
+    static ActionClass* sActionClass;
+
+    /**
+    * Generates a name for an image based on its path, colour and time.
+    * @param folder A path to the location where the image is to be stored.
+	* @param colour The colour string of the image
+	* @param time_ The time to use, as returned by time(0)
+    * */
+    std::string generateFilePathNoExtension(const std::string& folder,
+		const std::string& colour, time_t time_);
 public:
 
-	static ActionClass* create();
-	~ActionClass();
+    /** Attempts to create the class, returning null if the class exists of if creation failed. */
+    static ActionClass* create();
 
-	int iso()
-	{
+    /** Undregisters the class. */
+    ~ActionClass();
 
-		if (CameraList::instance() == nullptr)
-		{
-			Error("Invalid camera list.");
-			return;
-		}
-		Camera* camera = CameraList::instance()->activeCamera();
-		if (camera == nullptr)
-		{
-			Error("Invalid camera pointer at " + ToString(__LINE__));
-			return;
-		}
+    /** Returns the current camera is. */
+    int iso();
 
-		camera->iso(Camera::isoMappings[std::string(ui.BoxIso->itemText(value).toUtf8())]);
-	}
+    /** Returns the current camera aperture. */
+    int aperture();
 
-	int aperture()
-	{
-		if (CameraList::instance() == nullptr)
-		{
-			Error("Invalid camera list.");
-			return;
-		}
-		Camera* camera = CameraList::instance()->activeCamera();
-		if (camera == nullptr)
-		{
-			Error("Invalid camera pointer at " + ToString(__LINE__));
-			return;
-		}
+    /** Returns the current camera shutter. */
+    int shutter();
 
-		camera->aperture(Camera::apertureMappings[std::string(ui.BoxAperture->itemText(value).toUtf8())]);
-	}
-	
-	int shutter()
-	{
+    /**
+    * Sets the iso of the current camera.
+    * @param text The text of the camera property, as defined by the internal Camera bidirectional mappings.
+    * */
+    void iso(const std::string& text);
 
-	}
+    /**
+    * Sets the aperture size of the current camera.
+    * @param text The text of the camera property, as defined by the internal Camera bidirectional mappings.
+    * */
+    void aperture(const std::string& text);
 
-	void iso(int)
-	{
+    /**
+    * Sets the shutter duration of the current camera.
+    * @param text The text of the camera property, as defined by the internal Camera bidirectional mappings.
+    * */
+    void shutter(const std::string& text);
 
-	}
-	void aperture(int)
-	{
+    /**
+    * Returns a vector of possible values that the camera may take.
+    * @param ep An enum specifying the properties being requested.
+    * */
+    std::vector<int> ennumeratePossibleValues(Camera::EnnumerableProperties ep);
 
-	}
-	void shutter(int)
-	{
-
-	}
-
-	bool shootSequence()
-	{
-
-	//Create SFML window
-	sf::RenderWindow window = sf::RenderWindow(sf::VideoMode(800, 600), "Hello");
-
-	//Wait until we should start
-	auto currentTime = std::chrono::steady_clock::now();
-	std::this_thread::sleep_for(startTime - currentTime);
-
-	//Go!!!
-
-	// For each colour
-	for (auto it = colours.begin(); it != colours.end(); ++it)
-	{
-		QColor colour = QColor(std::string(it->toUtf8()).c_str());
-		
-		if (!colour.isValid())
-		{
-			Warning("Invalid colour!");
-		}
-
-		Inform(ToString(colour.red()));
-		Inform(ToString(colour.green()));
-		Inform(ToString(colour.blue()));
-
-
-		CameraList* cl = CameraList::instance();
-		if (!cl)
-		{
-			Error("Invalid camera list.");
-			return;
-		}
-
-		Camera* camera = cl->activeCamera();
-		if (!camera)
-		{
-			Error("Invalid camera.");
-			return;
-		}
-		
-		camera->shoot();
-
-		//Call loop twice
-		for (int i = 0; i < 2; ++i)
-		{
-			// check all the window's events that were triggered since the last iteration of the loop.
-			//Twice.
-			sf::Event event;
-			while (window.pollEvent(event))
-			{
-				// "close requested" event: we close the window
-				if (event.type == sf::Event::Closed)
-					window.close();
-				else if (event.type == sf::Event::KeyPressed)
-				{
-					sf::Keyboard::Key key = event.key.code;
-
-					switch (key)
-					{
-					case sf::Keyboard::Key::Escape:
-						window.close();
-						break;
-					}
-				}
-			}
-
-			window.clear(sf::Color(colour.red(), colour.green(), colour.blue(), 255));
-			window.display();
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(200));
-		camera->shoot();
-
-		//Loop must be called while camera is not ready
-		do
-		{
-			sf::Event event;
-			while (window.pollEvent(event)) {}
-		} while (!camera->readyToShoot());
-
-
-		auto image = camera->retrieveLastImage();
-
-		std::string path = "C:\\Anima\\ImageBackgroundRemoval\\build\\src\\captured";
-
-		long long time = std::chrono::duration_cast<std::chrono::seconds> (
-			std::chrono::steady_clock::now().time_since_epoch()).count();
-
-		if (saveRaw)
-			image.saveToFile(appendNameToPath(
-			std::string(ToString(time) + ToString(".cr2")),
-							path).c_str());
-
-		if (saveProcessed)
-		{
-			auto imageRgba = image.asRGBA();
-			imageRgba.saveToFile(appendNameToPath(
-				std::string(ToString(time) + "." + processedExtension),
-				path).c_str());
-		}
-	}
-	}
+    /**
+    * Shoots a sequence of photos with the given parameters, saving the result.
+    * @param startTime The time when shooting should start.
+    * @param colours The list of colours to shoot with.
+    * @param saveProcessed Whether to save processed images im processedExtension format.
+    * @param saveraw Whether to saw the raw .cr2 images.
+    * @param processedExtension The extension with which to save the processed image.
+    * */
+    bool shootSequence(std::chrono::time_point<std::chrono::system_clock> startTime,
+        const QStringList& colours, bool saveProcessed, bool saveRaw, const std::string& processedExtension);
 };
