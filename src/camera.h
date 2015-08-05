@@ -6,6 +6,46 @@
 #include "propertymap.h"
 #include "image.h"
 
+/** This struct is used to encapsulate an EdsStream object. */
+class EdsStreamContainer
+{
+	EdsImageRef mImage = nullptr;
+public:
+
+	EdsStreamRef mRef = nullptr;
+	
+
+	/** Trivial constructor. */
+	EdsStreamContainer();
+
+	/** Constructs from a stream object, taking ownership. */
+	EdsStreamContainer(EdsStreamRef ref);
+
+	/** This must be set if the image reference may go out of scope before the scream reference. */
+	void setImageRef(EdsImageRef ref);
+
+	EdsStreamContainer(const EdsStreamContainer& c);
+	EdsStreamContainer(EdsStreamContainer&& c);
+
+	/** Releases the stream. */
+	~EdsStreamContainer();
+
+	/** Copy operator. */
+	EdsStreamContainer& operator = (const EdsStreamContainer& c);
+
+	/** Move operator. */
+	EdsStreamContainer& operator = (EdsStreamContainer&& c);
+
+	/** Returns a pointer to the internal data. */
+	void* pointer() const;
+
+	/** Returns the size of the internal data. */
+	unsigned size() const;
+
+	/** Deletes the stream */
+	void clear();
+};
+
 /**
 * this class serves as an interface to a camera object that is connected to the computer.
 * */
@@ -40,6 +80,7 @@ public:
 	static const PropertyMap isoMappings;
 	static const PropertyMap apertureMappings;
 	static const PropertyMap shutterSpeedMappings;
+	static const PropertyMap whiteBalanceMappings;
 
 	enum class EnnumerableProperties {ShutterSpeed, ISO, Aperture};
 
@@ -54,7 +95,7 @@ public:
 	/** Destructor that cleans up and frees memory, closing any connections. */
 	~Camera();
 
-	/** Returns whether the camera is ready to take the next picture. */
+	/** Returns whether the camera is ready to take the next picture (i.e, finished processing previous). */
 	bool readyToShoot();
 
 	/** Selects this as the active camera, creating a session.
@@ -68,7 +109,7 @@ public:
 	std::string name();
 
 
-	/** Gets all the possible value IDs for the given property. */
+	/** Gets all the possible value IDs for the given property. Ignores bulb mode. */
 	std::vector<int> ennumeratePossibleValues(EnnumerableProperties ep);
 
 	/**
@@ -96,6 +137,14 @@ public:
 
 	/** Gets the aperture width id. Returns -1 upon failure. */
 	int aperture();
+
+	/** Gets the white balance. Returns false upon failure.
+	* @param v The id of the aperture value as defined in CameraList::apertureMappings.
+	* */
+	bool whiteBalance(int v);
+
+	/** Gets the aperture width id. Returns -1 upon failure. */
+	int whiteBalance();
 
 	/**Takes a picture and stores it in the directory with the given name.
 	* The ease of use was crippled due to limitations of the SDK.

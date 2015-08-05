@@ -6,7 +6,6 @@
 int main(int argc, char *argv[])
 {
 QApplication a(argc, argv);
-
 std::unique_ptr<Window> w(Window::create());
 if (w.get() == nullptr)
 	return 1;

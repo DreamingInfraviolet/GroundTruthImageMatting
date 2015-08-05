@@ -178,7 +178,115 @@ const PropertyMap Camera::shutterSpeedMappings =
 	{ 0xffffffff, "Invalid" }
 };
 
+const PropertyMap Camera::whiteBalanceMappings =
+{
+	{0, "Auto" },
+	{1, "Daylight"},
+	{2, "Cloudy"},
+	{3, "Tungsten"},
+	{4, "Fluorescent"},
+	{5, "Flash"},
+	{6, "Manual"},
+	{8, "Shade"},
+	{9, "Colour Temperature"},
+	{10, "Custom 1"},
+	{11, "Custom 2"},
+	{12, "Custom 3"},
+	{15, "Manual 2"},
+	{16, "Manual 3"},
+	{18, "Manual 4"},
+	{19, "Manual 5"},
+	{20, "Custom 4"},
+	{21, "Custom 5"},
+	{-1, "Clicking mode"},
+	{ -2, "Coped from image" }
+};
 
+EdsStreamContainer::EdsStreamContainer() {}
+
+EdsStreamContainer::EdsStreamContainer(EdsStreamRef ref)
+{ 
+	mRef = ref;
+}
+
+void EdsStreamContainer::setImageRef(EdsImageRef ref)
+{
+	mImage = ref;
+	EdsRetain(mImage);
+}
+
+EdsStreamContainer::~EdsStreamContainer()
+{
+	clear();
+}
+
+EdsStreamContainer& EdsStreamContainer::operator = (const EdsStreamContainer& c)
+{
+	clear();
+	mRef = c.mRef;
+	EdsRetain(mRef);
+	mImage = c.mImage;
+	EdsRetain(mImage);
+	return *this;
+}
+
+EdsStreamContainer::EdsStreamContainer(const EdsStreamContainer& c)
+{
+	clear();
+	mRef = c.mRef;
+	EdsRetain(mRef);
+	mImage = c.mImage;
+	EdsRetain(mImage);
+}
+
+EdsStreamContainer::EdsStreamContainer(EdsStreamContainer&& c)
+{
+	clear();
+	mRef = c.mRef;
+	c.mRef = nullptr;
+	mImage = c.mImage;
+	c.mImage = nullptr;
+}
+
+EdsStreamContainer& EdsStreamContainer::operator = (EdsStreamContainer&& c)
+{
+	clear();
+	mRef = c.mRef;
+	c.mRef = nullptr;
+	mImage = c.mImage;
+	c.mImage = nullptr;
+	return *this;
+}
+
+void EdsStreamContainer::clear()
+{
+	if (mRef)
+		EdsRelease(mRef);
+	if (mImage)
+		EdsRelease(mImage);
+	mRef = nullptr;
+	mImage = nullptr;
+}
+
+void* EdsStreamContainer::pointer() const
+{
+	void* ptr;
+	auto err = EdsGetPointer(mRef, &ptr);
+	if (err != EDS_ERR_OK)
+		return nullptr;
+	else
+		return ptr;
+}
+
+unsigned EdsStreamContainer::size() const
+{
+	EdsUInt32 s;
+	auto err = EdsGetLength(mRef, &s);
+	if (err != EDS_ERR_OK)
+		return 0;
+	else
+		return s;
+}
 
 
 CameraList::CameraList()
@@ -406,8 +514,9 @@ std::vector<int> Camera::ennumeratePossibleValues(EnnumerableProperties ep)
 	out.reserve(desc.numElements);
 
 	for (int i = 0; i < desc.numElements; ++i)
-		if(desc.propDesc[i]!=0)
-			out.push_back(desc.propDesc[i]);
+		if (desc.propDesc[i] != 0)
+			if (!(ep == EnnumerableProperties::ShutterSpeed && desc.propDesc[i] == 0x0C))
+				out.push_back(desc.propDesc[i]);
 
 	return out;
 }
@@ -455,6 +564,23 @@ int Camera::aperture()
 	int v;
 	CHECK_EDS_ERROR(EdsGetPropertyData(mCameraRef, kEdsPropID_Av, 0, sizeof(EdsInt32), &v), "Could not get aperture property.", -1);
 	Inform(std::string("Retrieving aperture value ") + ToString(v) + " for " + name());
+	return v;
+}
+
+bool Camera::whiteBalance(int v)
+{
+	Inform(std::string("Setting white balance value ") + ToString(v) + " for " + name());
+	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_WhiteBalance, 0, sizeof(EdsInt32), &v),
+		"Could not set white balance property.", false);
+	return true;
+}
+
+int Camera::whiteBalance()
+{
+	int v;
+	CHECK_EDS_ERROR(EdsGetPropertyData(mCameraRef, kEdsPropID_WhiteBalance, 0, sizeof(EdsInt32), &v),
+		"Could not get white balance property.", -1);
+	Inform(std::string("Retrieving white balance value ") + ToString(v) + " for " + name());
 	return v;
 }
 
@@ -534,35 +660,33 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
 
 		//Create stream
-		EdsStreamRef stream = nullptr;
-		CHECK_EDS_ERROR_ACT(EdsCreateMemoryStream(dii.size, &stream), "Failed to create image stream", err,
+		EdsStreamContainer stream;
+		CHECK_EDS_ERROR_ACT(EdsCreateMemoryStream(dii.size, &stream.mRef), "Failed to create image stream", err,
 			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
+		
 
 		//Download
-		CHECK_EDS_ERROR_ACT(EdsDownload(inRef, dii.size, stream), "Could not download image", err,
-			EdsRelease(stream); EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
+		CHECK_EDS_ERROR_ACT(EdsDownload(inRef, dii.size, stream.mRef), "Could not download image", err,
+			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
 		CHECK_EDS_ERROR_ACT(EdsDownloadComplete(inRef), "Could not send download success confirmation", err,
-			EdsRelease(stream); EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
+			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
+
 
 		//Get image and information about it
 		EdsImageRef image;
-		CHECK_EDS_ERROR_ACT(EdsCreateImageRef(stream, &image), "Could not retrieve image ref", err,
-			EdsRelease(stream); *camera->mReadyToTakePhoto = true;);
+		CHECK_EDS_ERROR_ACT(EdsCreateImageRef(stream.mRef, &image), "Could not retrieve image ref", err,
+			*camera->mReadyToTakePhoto = true;);
+
+		stream.setImageRef(image);
 
 		EdsImageInfo imageInfo;
 		CHECK_EDS_ERROR_ACT(EdsGetImageInfo(image, kEdsImageSrc_RAWFullView, &imageInfo),
 			"Could not retrieve image info", err,
-			EdsRelease(stream); EdsRelease(image); *camera->mReadyToTakePhoto = true;);
+			EdsRelease(image); *camera->mReadyToTakePhoto = true;);
 
-		void* imageData;
-		CHECK_EDS_ERROR_ACT(EdsGetPointer(stream, &imageData), "Could not retrieve the image pointer", err,
-			EdsRelease(stream); EdsRelease(image); *camera->mReadyToTakePhoto = true;);
-
-		ImageRaw img = ImageRaw(image, imageData, dii.size, imageInfo.width, imageInfo.height);
+		ImageRaw img = ImageRaw(image, stream.pointer(), dii.size, imageInfo.width, imageInfo.height);
 		camera->mLastImage = std::move(img);
 
-		EdsRelease(stream);
-		
 		//Notify camera that it can take photos again, and notify a waiting thread, if any.
 		*camera->mReadyToTakePhoto = true;
 
@@ -577,12 +701,11 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 std::vector<unsigned char> Camera::getLiveImage()
 {
 
-	EdsStreamRef stream;
-	CHECK_EDS_ERROR(EdsCreateMemoryStream(0, &stream), "Could not create stream", {});
+	EdsStreamContainer stream;
+	CHECK_EDS_ERROR(EdsCreateMemoryStream(0, &stream.mRef), "Could not create stream", {});
 
 	EdsEvfImageRef image;
-	CHECK_EDS_ERROR_ACT(EdsCreateEvfImageRef(stream, &image), "Could not create image reference", {},
-		EdsRelease(stream));
+	CHECK_EDS_ERROR(EdsCreateEvfImageRef(stream.mRef, &image), "Could not create image reference", {});
 
 
 	int err = EdsDownloadEvfImage(mCameraRef, image);
@@ -591,24 +714,14 @@ std::vector<unsigned char> Camera::getLiveImage()
 		//If it's not ready, it is not unexpected behaviour.
 		if (err != EDS_ERR_OBJECT_NOTREADY)
 			Error("Could not download live stream");
-		EdsRelease(stream);
 		EdsRelease(image);
 		return{};
 	}
 
-	void* data;
-	CHECK_EDS_ERROR_ACT(EdsGetPointer(stream, (EdsVoid**)& data), "Could not get image pointer", {},
-		EdsRelease(stream); EdsRelease(image););
-
-	EdsUInt32 dataLen;
-	CHECK_EDS_ERROR_ACT(EdsGetLength(stream, &dataLen), "Could not get stream size", {},
-		EdsRelease(stream); EdsRelease(image););
-
 	std::vector<unsigned char> out;
-	out.resize(dataLen);
-	memcpy(&out[0], data, dataLen);
+	out.resize(stream.size());
+	memcpy(&out[0], stream.pointer(), stream.size());
 
-	EdsRelease(stream);
 	EdsRelease(image);
 
 	return out;

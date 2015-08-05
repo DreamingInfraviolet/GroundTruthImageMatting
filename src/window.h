@@ -14,6 +14,8 @@ class Window : public QMainWindow
     Q_OBJECT
 private:
 
+	bool initialised = false;
+
     /** Performs global initialisation. Returns true upon success. */
     bool initialise();
 
@@ -39,6 +41,10 @@ private:
 
 	/** Updates colours.txt with the currently selected colours. */
 	void updateColourFile();
+
+	//Where the images should be saved.
+	std::string mSaveDir;
+
 public:
 
     /** Creates a new window. Returns null if failed or if a window already exists. */
@@ -56,6 +62,9 @@ public:
     /** Returns the current instance of the window. */
     static Window* instance();
 
+	/** Gives a dialogue with with a message, returning a delay amount */
+	int showGroundTruthDialog();
+
     public slots:
     /** Adds a new colour. */
     void buttonAddEvent();
@@ -69,14 +78,20 @@ public:
     /** Brings the selected colour down. */
     void buttonDownEvent();
 
+	/** Allows the user to change the save directory. */
+	void buttonChangeDirEvent();
+
     /** Changes the camera ISO. */
     void changeIsoEvent(int value);
 
     /** Changes the camera perture size. */
     void changeApertureEvent(int value);
 
-    /** Changes the shutter duration. */
-    void changeShutterEvent(int value);
+	/** Changes the shutter duration. */
+	void changeShutterEvent(int value);
+
+	/** Changes the white balance. */
+	void changeWhiteBalanceEvent(int value);
 
     /** Takes and saves a sequence of images with the given parameters. */
     void shootEvent();

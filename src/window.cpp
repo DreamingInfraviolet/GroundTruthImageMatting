@@ -2,8 +2,9 @@
 #include "io.h"
 #include <qcolordialog.h>
 #include "actionclass.h"
+#include "qinputdialog.h"
 #include <fstream>
-
+#include <qfiledialog.h>
 
 
 Window* Window::sWindow = nullptr;
@@ -22,6 +23,9 @@ bool Window::initialise()
 	connect(ui.BoxIso, SIGNAL(currentIndexChanged(int)), this, SLOT(changeIsoEvent(int)));
 	connect(ui.BoxAperture, SIGNAL(currentIndexChanged(int)), this, SLOT(changeApertureEvent(int)));
 	connect(ui.BoxShutter, SIGNAL(currentIndexChanged(int)), this, SLOT(changeShutterEvent(int)));
+	connect(ui.BoxWhiteBalance, SIGNAL(currentIndexChanged(int)), this, SLOT(changeWhiteBalanceEvent(int)));
+
+	connect(ui.ButtonChoosePath, SIGNAL(pressed()), this, SLOT(buttonChangeDirEvent()));
 
 	connect(ui.ButtonGo, SIGNAL(pressed()), this, SLOT(shootEvent()));
 
@@ -31,9 +35,6 @@ bool Window::initialise()
 	mColourModel = std::unique_ptr<QStringListModel>(new QStringListModel(this));
 	ui.ListColours->setModel(mColourModel.get());
 	ui.ListColours->setEditTriggers(QAbstractItemView::NoEditTriggers);
-
-	ui.CheckSaveProcessed->setChecked(true);
-	ui.CheckSaveRaw->setChecked(true);
 
 	if (!(mActionClass = std::unique_ptr<ActionClass>(ActionClass::create())).get())
 		return false;
@@ -46,6 +47,9 @@ bool Window::initialise()
 	int currentAp = mActionClass->aperture();
 	int currentIs = mActionClass->iso();
 	int currentSh = mActionClass->shutter();
+	int currentWb = mActionClass->whiteBalance();
+
+	//If bulb mode, change
 
 	for (size_t i = 0; i < apList.size(); ++i)
 	{
@@ -61,11 +65,39 @@ bool Window::initialise()
 			ui.BoxIso->setCurrentIndex(i);
 	}
 
+	bool foundShutter = false;
 	for (size_t i = 0; i < shList.size(); ++i)
 	{
 		ui.BoxShutter->addItem(Camera::shutterSpeedMappings[shList[i]].c_str());
 		if (shList[i] == currentSh)
+		{
 			ui.BoxShutter->setCurrentIndex(i);
+			foundShutter = true;
+		}
+	}
+
+	if (!foundShutter && shList.size() > 0)
+	{
+		mActionClass->shutter(Camera::shutterSpeedMappings[shList.front()]);
+		ui.BoxShutter->setCurrentIndex(0);
+	}
+
+	std::vector<int> availableWhiteBalances = { 1, 2, 3, 4, 5, 8, 9 };
+	bool foundWhiteBalance = false;
+	for (size_t i = 0; i < availableWhiteBalances.size(); ++i)
+	{
+		ui.BoxWhiteBalance->addItem(Camera::whiteBalanceMappings[availableWhiteBalances[i]].c_str());
+		if (availableWhiteBalances[i] == currentWb)
+		{
+			ui.BoxWhiteBalance->setCurrentIndex(i);
+			foundWhiteBalance = true;
+		}
+	}
+
+	if (!foundWhiteBalance)
+	{
+		mActionClass->whiteBalance("Daylight");
+		ui.BoxWhiteBalance->setCurrentIndex(0);
 	}
 
 	std::fstream colourFile("colours.txt", std::ios::in);
@@ -98,6 +130,7 @@ bool Window::initialise()
 	}
 
 	Inform("Window ready");
+	initialised = true;
 	return true;
 }
 
@@ -126,6 +159,9 @@ Window::~Window() { sWindow = nullptr; }
 
 void Window::buttonAddEvent()
 {
+	if (!initialised)
+		return;
+
 	QColor colour = QColorDialog::getColor(Qt::white);
 	if (!colour.isValid())
 		return;
@@ -137,6 +173,9 @@ void Window::buttonAddEvent()
 
 void Window::buttonRemoveEvent()
 {
+	if (!initialised)
+		return;
+
 	auto removeIndex = ui.ListColours->currentIndex();
 	if (removeIndex.isValid())
 		mColourModel->removeRow(removeIndex.row());
@@ -145,6 +184,9 @@ void Window::buttonRemoveEvent()
 }
 void Window::buttonUpEvent()
 {
+	if (!initialised)
+		return;
+
 	auto currentIndex = ui.ListColours->currentIndex();
 	if (!currentIndex.isValid())
 		return;
@@ -162,6 +204,9 @@ void Window::buttonUpEvent()
 
 void Window::buttonDownEvent()
 {
+	if (!initialised)
+		return;
+
 	auto currentIndex = ui.ListColours->currentIndex();
 	if (!currentIndex.isValid())
 		return;
@@ -180,28 +225,53 @@ void Window::buttonDownEvent()
 
 void Window::changeIsoEvent(int value)
 {
+	if (!initialised)
+		return;
+
 	mActionClass->iso(std::string(ui.BoxIso->itemText(value).toUtf8()));
 }
 
 void Window::changeApertureEvent(int value)
 {
+	if (!initialised)
+		return;
+
 	mActionClass->aperture(std::string(ui.BoxAperture->itemText(value).toUtf8()));
 }
 
 void Window::changeShutterEvent(int value)
 {
+	if (!initialised)
+		return;
+
 	mActionClass->shutter(std::string(ui.BoxShutter->itemText(value).toUtf8()));
 }
 
+void Window::changeWhiteBalanceEvent(int value)
+{
+	if (!initialised)
+		return;
+
+	mActionClass->whiteBalance(std::string(ui.BoxWhiteBalance->itemText(value).toUtf8()));
+}
 
 void Window::shootEvent()
 {
+	static bool shooting = false;
+	if (shooting)
+		return;
+	shooting = true;
+
+	if (!initialised)
+		return;
+
 	//Gather information
 	int delay = ui.SpinDelay->value();
 	auto startTime = std::chrono::steady_clock::now() + std::chrono::seconds(delay);
 
 	bool saveProcessed = ui.CheckSaveProcessed->isChecked();
 	bool saveRaw = ui.CheckSaveRaw->isChecked();
+	bool saveGroundTruth = ui.CheckSaveGroundTruth->isChecked();
 
 	std::string processedExtension = ui.BoxProcessedformat->itemText(ui.BoxProcessedformat->currentIndex()).toUtf8();
 
@@ -214,42 +284,65 @@ void Window::shootEvent()
 	if (colours.size() == 0)
 	{
 		Inform("Can not take photos with no colours selected.");
+		shooting = false;
 		return;
 	}
 	for (auto it = colours.begin(); it != colours.end(); ++it)
 		if (!QColor(std::string(it->toUtf8()).c_str()).isValid())
 		{
 			Error(std::string(("Invalid colour " + *it + ", Aborting sequence.").toUtf8()));
+			shooting = false;
 			return;
 		}
 
-	if (!saveRaw && !saveProcessed)
+	if (!saveRaw && !saveProcessed && !saveGroundTruth)
 	{
 		Inform("Can not take photos: No target saving format");
+		shooting = false;
 		return;
 	}
 
-	setCursor(Qt::BlankCursor);
+	if (saveGroundTruth && colours.size() < 5)
+	{
+		Inform("Can not take photos: Please select at least five colours for ground truth generation.");
+		shooting = false;
+		return;
+	}
+
+	//setWindowState(Qt::WindowState::WindowMinimized);
 	disableEvents();
+
 	//Shoot sequence
-	if (!mActionClass->shootSequence(startTime, colours, saveProcessed, saveRaw, processedExtension))
+	if (!mActionClass->shootSequence(startTime, colours, saveProcessed,
+		saveRaw, saveGroundTruth, processedExtension, mSaveDir))
 		Error("Failed taking image sequence");
+
 	enableEvents();
-	setCursor(Qt::ArrowCursor);
+	shooting = false;
+	//showNormal();
 }
 
 void Window::disableEvents()
 {
+	if (!initialised)
+		return;
+
 	this->installEventFilter(&mFilter);
 }
 
 void Window::enableEvents()
 {
+	if (!initialised)
+		return;
+
 	this->removeEventFilter(&mFilter);
 }
 
 void Window::updateColourFile()
 {
+	if (!initialised)
+		return;
+
 	//Try to reopen file, clearing it:
 	std::fstream colourFile("colours.txt", std::ios::out | std::ios::trunc);
 	if (colourFile.fail())
@@ -262,4 +355,32 @@ void Window::updateColourFile()
 
 	for (auto it = colours.begin(); it != colours.end(); ++it)
 		colourFile << std::string(it->toUtf8()) << "\n";
+}
+
+void Window::buttonChangeDirEvent()
+{
+	if (!initialised)
+		return;
+
+	QFileDialog fd;
+	fd.setFileMode(QFileDialog::Directory);
+	fd.setOption(QFileDialog::ShowDirsOnly);
+	fd.setViewMode(QFileDialog::Detail);
+	int result = fd.exec();
+	QString directory;
+	if (result)
+	{
+		directory = fd.selectedFiles()[0];
+		mSaveDir = directory.toUtf8();
+	}
+}
+
+int Window::showGroundTruthDialog()
+{
+	bool ok;
+	int select = QInputDialog::getInt(NULL, "Please remove the object", "Delay in seconds:", 5, 0, 1000, 1, &ok);
+	if (!ok)
+		return -1;
+	else
+		return ok;
 }

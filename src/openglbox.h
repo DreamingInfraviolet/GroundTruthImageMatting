@@ -7,6 +7,7 @@
 
 class QOpenGLTexture;
 class ImageShader;
+class ColourShader;
 
 /**
 * This is the class that takes care of drawing the live view of the camera on the QT window.
@@ -23,15 +24,27 @@ class OpenGlBox :public  QOpenGLWidget, public QOpenGLFunctions
     Q_OBJECT
 
 private:
+	//Returned by the worker thrad
+	struct WorkerReturn
+	{
+		QImage image;
+		unsigned int hist[256];
+	};
 
     //The image shader to be used.
     ImageShader* mImageShader = nullptr;
+
+	//The histogram shader
+	ColourShader* mHistShader = nullptr;
 
     //Stores the video texture between frames.
     QOpenGLTexture* mVideoTexture = nullptr;
 
     //Filled by worker thread
-    std::future<QImage*> mVideoImage; 
+    std::future<WorkerReturn*> mWorkerReturnFuture; 
+
+	//Current worker return
+	WorkerReturn* mWorkerReturn = nullptr;
 
     //Used by worker thread
     std::vector<unsigned char> mVideoImageData;
@@ -39,18 +52,26 @@ private:
     //Handles the frame timing
     QBasicTimer mBasicTimer;
 
-    //The screen quad
-    struct
-    {
-        Vertex2D quad[6];
-        GLuint VBO;
-    } mQuad;
+	//The screen quad
+	struct
+	{
+		Vertex2D quad[6];
+		GLuint VBO;
+	} mQuad;
+
+	//The histogram quad
+	struct
+	{
+		Vertex2D quad[6];
+		GLuint VBO;
+	} mHistQuad;
 
     /** Initialises the screen quad to fill the screen. */
-    void initialiseQuad();
+    void initialiseQuads();
 
     //The current instance of the class.
     static OpenGlBox* mInstance;
+
 public:
 
     /** Trivial constructor registering the class. */
