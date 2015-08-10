@@ -21,6 +21,9 @@ Usage:
 7. When prompted, remove the object and press enter to take 5 other images.
 8. Wait for the generated results.
 
+Note that the debug output provided through the console is highly useful, and is designed to be
+the main feedback mechanism. So you should preferably run the program through a terminal!
+
 System requirements:
   At least 1.7GB of free RAM memory. May use as much as 500MB of free disk space.
   These requirements for a seemingly simple application are due to the pure
