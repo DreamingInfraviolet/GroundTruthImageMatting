@@ -12,7 +12,6 @@
 /**
 * Arguments:
 * @arg The name of the program (default argument)
-* @arg Directory The directory in which to save the generated images
 * @arg Colour1Path The filename of the foreground image with colour 1
 * @arg Colour2Path The filename of the foreground image with colour 2
 * @arg Colour3Path The filename of the foreground image with colour 3
@@ -32,9 +31,9 @@ int main(int argc, char** argv)
 {
 	Inform("Entered Ground Truth generator");
 
-	if(argc != 15)
+	if(argc != 14)
 	{
-		Error("Invalid number of arguments: Expected 15, received " + ToString(argc));
+		Error("Invalid number of arguments: Expected 14, received " + ToString(argc));
 		return 1;
 	}
 
@@ -44,10 +43,10 @@ int main(int argc, char** argv)
 
 	for (int i = 0; i < 10; ++i)
 	{
-		bool result = LoadRawRgb(argv[2 + i], images[i]);
+		bool result = LoadRawRgb(argv[1 + i], images[i]);
 		if (!result)
 		{
-			Error("Could not load " + ToString(argv[2 + i]));
+			Error("Could not load " + ToString(argv[1 + i]));
 			return 2;
 		}
 	}
@@ -56,13 +55,18 @@ int main(int argc, char** argv)
 	if (groundTruth.size() != 3)
 		return 3;
 	
-	Inform("Saving results");
+	bool succeeded = true;
 	for (size_t i = 0; i < 3; ++i)
 	{
-		if (!cv::imwrite(appendNameToPath(argv[12 + i], argv[1]), groundTruth[i]))
-			Warning("Could not save " + ToString(argv[12+i]));
+		const std::string path = (argv[11 + i]);
+		Inform("Saving " + path);
+		if (!cv::imwrite(path, groundTruth[i]))
+		{
+			Error("Could not save " + ToString(argv[11 + i]));
+			succeeded = false;
+		}
 	}
 
-	Inform("Done");
-	return 0;
+	Inform("Exiting ground truth algorithm");
+	return succeeded ? 0:4;
 }

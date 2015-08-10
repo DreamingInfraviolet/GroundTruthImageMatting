@@ -353,7 +353,7 @@ bool ActionClass::generateGroundTruth(std::vector<RawRgbEds>& foreground,
 	//Execute ground truth application
 	Inform("Executing ground truth application");
 	QProcess* gtProcess = new QProcess(Window::instance());
-	QStringList collectiveArgs = { QStringList{ path.c_str() } +fTempNames + bTempNames + aName + fName + afName };
+	QStringList collectiveArgs = { fTempNames + bTempNames + aName + fName + afName };
 	int code = gtProcess->execute("GroundTruth.exe", collectiveArgs);
 	delete gtProcess;
 

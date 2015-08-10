@@ -1,6 +1,8 @@
 #include "io.h"
 #include <iostream>
 #include <map>
+#include <fstream>
+#include <algorithm>
 
 void Error(const std::string& msg)
 {
@@ -22,15 +24,21 @@ std::string appendNameToPath(const std::string& name, const std::string& path)
 	if (path.size() == 0)
 		return name;
 
+	std::string out;
+
 	//If separator already exists, just add
 	if (path.back() == '\\' || path.back() == '/')
-		return path + name;
+		out = path + name;
 	else
+		out = path + "/" + name;
+
 #ifdef _WIN32
-		return path + "\\" + name;
+	std::replace(out.begin(), out.end(), '\\', '/');
 #else
-		return path + "/" + name;
+	std::replace(out.begin(), out.end(), '\\', '/');
 #endif
+
+	return out;
 }
 
 static std::map<long, const char*> edsErrorMapping
