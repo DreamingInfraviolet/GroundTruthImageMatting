@@ -2,49 +2,10 @@
 #include <vector>
 #include <string>
 #include <atomic>
-#include "EDSDKTypes.h"
+#include <EDSDKTypes.h>
 #include "propertymap.h"
 #include "image.h"
-
-/** This struct is used to encapsulate an EdsStream object. */
-class EdsStreamContainer
-{
-	EdsImageRef mImage = nullptr;
-public:
-
-	EdsStreamRef mRef = nullptr;
-	
-
-	/** Trivial constructor. */
-	EdsStreamContainer();
-
-	/** Constructs from a stream object, taking ownership. */
-	EdsStreamContainer(EdsStreamRef ref);
-
-	/** This must be set if the image reference may go out of scope before the scream reference. */
-	void setImageRef(EdsImageRef ref);
-
-	EdsStreamContainer(const EdsStreamContainer& c);
-	EdsStreamContainer(EdsStreamContainer&& c);
-
-	/** Releases the stream. */
-	~EdsStreamContainer();
-
-	/** Copy operator. */
-	EdsStreamContainer& operator = (const EdsStreamContainer& c);
-
-	/** Move operator. */
-	EdsStreamContainer& operator = (EdsStreamContainer&& c);
-
-	/** Returns a pointer to the internal data. */
-	void* pointer() const;
-
-	/** Returns the size of the internal data. */
-	unsigned size() const;
-
-	/** Deletes the stream */
-	void clear();
-};
+#include "edscontainer.h"
 
 /**
 * this class serves as an interface to a camera object that is connected to the computer.

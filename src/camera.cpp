@@ -2,9 +2,10 @@
 #include <memory>
 #include <ctime>
 #include <cstdio>
-#include "EDSDK.h"
+#include <EDSDK.h>
 #include "camera.h"
 #include "io.h"
+#include "edsstreamcontainer.h"
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -180,114 +181,27 @@ const PropertyMap Camera::shutterSpeedMappings =
 
 const PropertyMap Camera::whiteBalanceMappings =
 {
-	{0, "Auto" },
-	{1, "Daylight"},
-	{2, "Cloudy"},
-	{3, "Tungsten"},
-	{4, "Fluorescent"},
-	{5, "Flash"},
-	{6, "Manual"},
-	{8, "Shade"},
-	{9, "Colour Temperature"},
-	{10, "Custom 1"},
-	{11, "Custom 2"},
-	{12, "Custom 3"},
-	{15, "Manual 2"},
-	{16, "Manual 3"},
-	{18, "Manual 4"},
-	{19, "Manual 5"},
-	{20, "Custom 4"},
-	{21, "Custom 5"},
-	{-1, "Clicking mode"},
+	{ 0, "Auto" },
+	{ 1, "Daylight" },
+	{ 2, "Cloudy" },
+	{ 3, "Tungsten" },
+	{ 4, "Fluorescent" },
+	{ 5, "Flash" },
+	{ 6, "Manual" },
+	{ 8, "Shade" },
+	{ 9, "Colour Temperature" },
+	{ 10, "Custom 1" },
+	{ 11, "Custom 2" },
+	{ 12, "Custom 3" },
+	{ 15, "Manual 2" },
+	{ 16, "Manual 3" },
+	{ 18, "Manual 4" },
+	{ 19, "Manual 5" },
+	{ 20, "Custom 4" },
+	{ 21, "Custom 5" },
+	{ -1, "Clicking mode" },
 	{ -2, "Coped from image" }
 };
-
-EdsStreamContainer::EdsStreamContainer() {}
-
-EdsStreamContainer::EdsStreamContainer(EdsStreamRef ref)
-{ 
-	mRef = ref;
-}
-
-void EdsStreamContainer::setImageRef(EdsImageRef ref)
-{
-	mImage = ref;
-	EdsRetain(mImage);
-}
-
-EdsStreamContainer::~EdsStreamContainer()
-{
-	clear();
-}
-
-EdsStreamContainer& EdsStreamContainer::operator = (const EdsStreamContainer& c)
-{
-	clear();
-	mRef = c.mRef;
-	EdsRetain(mRef);
-	mImage = c.mImage;
-	EdsRetain(mImage);
-	return *this;
-}
-
-EdsStreamContainer::EdsStreamContainer(const EdsStreamContainer& c)
-{
-	clear();
-	mRef = c.mRef;
-	EdsRetain(mRef);
-	mImage = c.mImage;
-	EdsRetain(mImage);
-}
-
-EdsStreamContainer::EdsStreamContainer(EdsStreamContainer&& c)
-{
-	clear();
-	mRef = c.mRef;
-	c.mRef = nullptr;
-	mImage = c.mImage;
-	c.mImage = nullptr;
-}
-
-EdsStreamContainer& EdsStreamContainer::operator = (EdsStreamContainer&& c)
-{
-	clear();
-	mRef = c.mRef;
-	c.mRef = nullptr;
-	mImage = c.mImage;
-	c.mImage = nullptr;
-	return *this;
-}
-
-void EdsStreamContainer::clear()
-{
-	if (mRef)
-		EdsRelease(mRef);
-	if (mImage)
-		EdsRelease(mImage);
-	mRef = nullptr;
-	mImage = nullptr;
-}
-
-void* EdsStreamContainer::pointer() const
-{
-	void* ptr;
-	auto err = EdsGetPointer(mRef, &ptr);
-	if (err != EDS_ERR_OK)
-		return nullptr;
-	else
-		return ptr;
-}
-
-unsigned EdsStreamContainer::size() const
-{
-	EdsUInt32 s;
-	auto err = EdsGetLength(mRef, &s);
-	if (err != EDS_ERR_OK)
-		return 0;
-	else
-		return s;
-}
-
 
 CameraList::CameraList()
 {
@@ -366,6 +280,7 @@ int CameraList::ennumerate()
 		CHECK_EDS_ERROR(EdsGetChildAtIndex(cameraList, iCamera, &camera),
 			std::string("Could not retrieve camera [") + ToString(iCamera) + "]", -1);
 
+		//Ownership is passed to the camera if successful.
 		EdsDeviceInfo* info = new EdsDeviceInfo();
 		CHECK_EDS_ERROR_ACT(EdsGetDeviceInfo(camera, info), "Could not get camera info", -1,
 			delete info;);
@@ -443,8 +358,8 @@ bool Camera::select()
 	//Start live stream
 	int pc = kEdsEvfOutputDevice_PC;
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_Evf_OutputDevice, 0,
-									sizeof(kEdsEvfOutputDevice_PC),
-									&pc), "could not start live stream", false);
+		sizeof(kEdsEvfOutputDevice_PC),
+		&pc), "could not start live stream", false);
 
 	//Register selection
 	cameraList->activeCamera(this);
@@ -585,7 +500,7 @@ int Camera::whiteBalance()
 }
 
 bool Camera::shoot()
-{	
+{
 	Inform("Shooting picture");
 
 	//While we are having message loop issues, just return false for now if not ready:
@@ -663,7 +578,7 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 		EdsStreamContainer stream;
 		CHECK_EDS_ERROR_ACT(EdsCreateMemoryStream(dii.size, &stream.mRef), "Failed to create image stream", err,
 			EdsDownloadCancel(inRef); *camera->mReadyToTakePhoto = true;);
-		
+
 
 		//Download
 		CHECK_EDS_ERROR_ACT(EdsDownload(inRef, dii.size, stream.mRef), "Could not download image", err,
@@ -677,7 +592,7 @@ EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef i
 		CHECK_EDS_ERROR_ACT(EdsCreateImageRef(stream.mRef, &image), "Could not retrieve image ref", err,
 			*camera->mReadyToTakePhoto = true;);
 
-		stream.setImageRef(image);
+		stream.setDepends(image);
 
 		EdsImageInfo imageInfo;
 		CHECK_EDS_ERROR_ACT(EdsGetImageInfo(image, kEdsImageSrc_RAWFullView, &imageInfo),

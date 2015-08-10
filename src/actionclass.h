@@ -31,7 +31,7 @@ class ActionClass
 	* @param colour The colour string of the image
 	* @param time_ The time to use, as returned by time(0)
     * */
-    std::string generateFilePathNoExtension(const std::string& folder,
+    std::string generateFilePath(const std::string& folder,
 		const std::string& colour, time_t time_);
 
 	/**
@@ -45,6 +45,33 @@ class ActionClass
 	std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 		(const QStringList& colours, bool delay,
 		std::chrono::time_point<std::chrono::system_clock> startTime = std::chrono::system_clock::now());
+
+	/**
+	* Takes in a list of RGB images and starts the process to compute the appropriate ground truth.
+	* The inputs are destroyed.
+	* These images are saved in the .tiff format regardless of the chosen extension to preserve detail.
+	* @param foreground The foreground images (minimum of 5)
+	* @param background The background images (minimum of 5)
+	* @param path The location where the images should be saved
+	* @param t The current time as returned by time(0). Used for generating temp file names.
+	* */
+	bool generateGroundTruth(std::vector<RawRgbEds>& foreground, std::vector<RawRgbEds>& background,
+		const std::string& path, time_t t);
+
+	/**
+	* Saves the images using their colours and t to determine the names.
+	* @param images The list of colour/image pairs to save
+	* @param path The location where the images should be saved
+	* @param nameSuffix The name to be appended to the file (e.g, "_stage2")
+	* @param t The current time as returned by time(0). Used for generating file names.
+	* @param saveRaw Whether to save the raw images.
+	* @param saveProcessed Whether to save the processed images
+	* @param processedExtension The processed extension to save (e.g., "tiff")
+	* @return An array of RawRgbEds values corresponding to the inputs, or {} upon failure.
+	* */
+	std::vector<RawRgbEds> saveImages(std::vector < std::pair<QColor, ImageRaw>  > & images,
+		const std::string& path, const std::string& nameSuffix, time_t t, bool saveRaw,
+		bool saveProcessed, const std::string& processedExtension);
 
 public:
 

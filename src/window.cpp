@@ -49,8 +49,7 @@ bool Window::initialise()
 	int currentSh = mActionClass->shutter();
 	int currentWb = mActionClass->whiteBalance();
 
-	//If bulb mode, change
-
+	//Populate combo boxes
 	for (size_t i = 0; i < apList.size(); ++i)
 	{
 		ui.BoxAperture->addItem(Camera::apertureMappings[apList[i]].c_str());
@@ -76,6 +75,7 @@ bool Window::initialise()
 		}
 	}
 
+	//If shutter is not a valid value (such as bulb mode), change it to a default.
 	if (!foundShutter && shList.size() > 0)
 	{
 		mActionClass->shutter(Camera::shutterSpeedMappings[shList.front()]);
@@ -94,12 +94,14 @@ bool Window::initialise()
 		}
 	}
 
+	//If no valid white balance set, set default
 	if (!foundWhiteBalance)
 	{
 		mActionClass->whiteBalance("Daylight");
 		ui.BoxWhiteBalance->setCurrentIndex(0);
 	}
 
+	//Read in colours file
 	std::fstream colourFile("colours.txt", std::ios::in);
 	if (colourFile.fail())
 	{
@@ -378,9 +380,9 @@ void Window::buttonChangeDirEvent()
 int Window::showGroundTruthDialog()
 {
 	bool ok;
-	int select = QInputDialog::getInt(NULL, "Please remove the object", "Delay in seconds:", 5, 0, 1000, 1, &ok);
+	int select = QInputDialog::getInt(NULL, "Please remove the object", "Delay in seconds:", 2, 0, 1000, 1, &ok);
 	if (!ok)
 		return -1;
 	else
-		return ok;
+		return select;
 }

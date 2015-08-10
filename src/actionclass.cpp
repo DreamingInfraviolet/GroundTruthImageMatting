@@ -4,9 +4,12 @@
 #include "camera.h"
 #include <thread>
 #include <qcolor.h>
-#include <opencv2/opencv.hpp>
+#include <cstdio>
 #include <ctime>
 #include "window.h"
+#include "rawrgbeds.h"
+#include "groundtruth.h"
+#include "qprocess.h"
 
 //Disable CHECK_CAMERA warning with empty arguments.
 #pragma warning (disable: 4003)
@@ -125,6 +128,8 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 	const QStringList& colours, bool saveProcessed, bool saveRaw, bool saveGroundTruth,
 	const std::string& processedExtension, const std::string& path)
 {
+	bool success = true;
+
     Inform("Shooting sequence");
     CHECK_CAMERA(false);
 
@@ -135,12 +140,17 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 		return false;
 	}
 
-	//Shoot
-	auto rawImages = shootPictures(colours, true, startTime);
+	//Must not return before uninitialising SDL.
 
-	decltype(rawImages) rawBackgroundImages;
+	//Shoot
+	auto foregroundImages = shootPictures(colours, true, startTime);
+	decltype(foregroundImages) backgroundImages;
+
+	if (foregroundImages.size() == 0)
+		success = false;
+
 	//Take Ground Truth pictures
-	if (saveGroundTruth)
+	if (success && saveGroundTruth)
 	{
 		assert(colours.size() >= 5);
 
@@ -149,96 +159,47 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 		for (int i = 0; i < 5; ++i)
 			groundTruthColours.append(colours[i]);
 
+		//Wait for user
 		Inform("Ground Truth stage: remove the object");
 		int secondsToWait = Window::instance()->showGroundTruthDialog();
 		if (secondsToWait == -1)
-		{
 			saveGroundTruth = false;
-		}
 		else
 		{
 			auto backgroundStartTime = std::chrono::system_clock::now() + std::chrono::seconds(secondsToWait);
-			rawBackgroundImages = shootPictures(groundTruthColours, true, backgroundStartTime);
+			backgroundImages = shootPictures(groundTruthColours, true, backgroundStartTime);
+
+			if (backgroundImages.size() == 0)
+				success = false;
 		}
 	}
-
 
 	//Save images
-	Inform("Processing images");
+	if (success)
+		Inform("Processing images");
 	time_t t = time(0);
 
-	
-	if (saveRaw)
-		for (size_t i = 0; i < rawImages.size(); ++i)
-			rawImages[i].second.saveToFile(
-				generateFilePathNoExtension(path, std::string(rawImages[i].first.name().toUtf8()), t) + ".cr2");
-				
-	std::vector<ImageRaw::RawRgb> rawRgbs;
-	
-	//Process images
-	if (saveProcessed || saveGroundTruth)
-	for (size_t i = 0; i < rawImages.size(); ++i)
+	auto foregroundRgbs = saveImages(foregroundImages, path, "_foreground",
+		t, saveRaw, saveProcessed, processedExtension);
+	foregroundImages.clear();
+
+	auto backgroundRgbs = saveImages(backgroundImages, path, "_background",
+		t, saveRaw, saveProcessed, processedExtension);
+	backgroundImages.clear();
+
+	if (foregroundRgbs.size() == 0 || backgroundRgbs.size() == 0)
+		success = false;
+
+	//Generate ground truth
+	if (success && saveGroundTruth)
 	{
-		std::string name = generateFilePathNoExtension(
-			path, std::string(rawImages[i].first.name().toUtf8()), t) + "." + processedExtension;
-
-		rawRgbs.push_back(rawImages[i].second.findRgb());
-
-		if (saveProcessed)
-			rawImages[i].second.saveProcessed(name, &rawRgbs.back());
-	}
-
-	//Destroy raw images
-	rawImages.clear();
-	//
-	
-	//Generate and save ground truth
-	if (saveGroundTruth)
-	{
-		Inform("Processing ground truth images");
-		if (rawRgbs.size() < 5 || rawBackgroundImages.size() < 5)
-			return false;
-
-		//Process and save background images
-		std::vector<ImageRaw::RawRgb> backroundRgbs;
-		for (size_t i = 0; i < rawBackgroundImages.size(); ++i)
-		{
-			if (saveRaw)
-				rawBackgroundImages[i].second.saveToFile(generateFilePathNoExtension(
-					path, std::string(rawBackgroundImages[i].first.name().toUtf8()) + "_background.cr2", t));
-	
-			backroundRgbs.push_back(rawBackgroundImages[i].second.findRgb());
-
-			if (saveProcessed)
-			{
-				std::string name = generateFilePathNoExtension(
-					path, std::string(rawBackgroundImages[i].first.name().toUtf8()) +
-					"_background." + processedExtension, t);
-				rawBackgroundImages[i].second.saveProcessed(name, &backroundRgbs.back());
-			}
-		}
-
-		rawBackgroundImages.clear();
-
-		//Generate ground truth
-		Inform("Generating ground truth");
-
-		std::vector<cv::Mat> groundTruth =
-			ImageRaw::generateGroundTruth(rawRgbs[0], rawRgbs[1], rawRgbs[2], rawRgbs[3], rawRgbs[4],
-			backroundRgbs[0], backroundRgbs[1], backroundRgbs[2], backroundRgbs[3], backroundRgbs[4]);
-
-		if (groundTruth.size()==0)
-			return false;
-
-		//Always save Ground truth as tiff
-		cv::imwrite(generateFilePathNoExtension(path, std::string("GroundTruth_A.tiff"), t), groundTruth[0]);
-		cv::imwrite(generateFilePathNoExtension(path, std::string("GroundTruth_F.tiff"), t), groundTruth[1]);
-		cv::imwrite(generateFilePathNoExtension(path, std::string("GroundTruth_AF.tiff"), t), groundTruth[2]);
+		if(!generateGroundTruth(foregroundRgbs, backgroundRgbs, path, t))
+			success = false;
 	}
 
 	SDL_Quit();
     Inform("Done");
-    return true;
+	return success;
 }
 
 //Potential memory leak
@@ -249,7 +210,7 @@ std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 	SDL_ShowCursor(false);
 
 	SDL_Window *win = SDL_CreateWindow("Colour", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, 800, 600,
-		SDL_WINDOW_SHOWN);// ,SDL_WINDOW_FULLSCREEN_DESKTOP);
+		SDL_WINDOW_FULLSCREEN_DESKTOP);
 	if (!win)
 	{
 		Error("Could not create SDL window.");
@@ -266,7 +227,7 @@ std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 		return{};
 	}
 
-	std::vector < std::pair<QColor, ImageRaw>  > rawImages;
+	std::vector < std::pair<QColor, ImageRaw>  > foregroundImages;
 	Camera* camera = CameraList::instance()->activeCamera();
 
 	//Go!
@@ -281,7 +242,8 @@ std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 		for (int i = 0; i < 4; ++i)
 		{
 			//Run the sdl loop, closing if needed
-			while (SDL_PollEvent(nullptr)) {}
+			SDL_Event e;
+			while (SDL_PollEvent(&e)) {}
 
 			SDL_SetRenderDrawColor(ren, colour.red(), colour.green(), colour.blue(), 255);
 			SDL_RenderClear(ren);
@@ -304,17 +266,18 @@ std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 		//Loop must be called while camera is not ready
 		do
 		{
-			while (SDL_PollEvent(nullptr)) {}
+			SDL_Event e;
+			while (SDL_PollEvent(&e)) {}
 			std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		} while (!camera->readyToShoot());
 
 
 		//Retrieve image
-		rawImages.push_back(std::make_pair(colour, camera->retrieveLastImage()));
-		if (rawImages.back().second.failed())
+		foregroundImages.push_back(std::make_pair(colour, camera->retrieveLastImage()));
+		if (foregroundImages.back().second.failed())
 		{
 			Error("Error retrieving image");
-			rawImages.pop_back();
+			foregroundImages.pop_back();
 			continue;
 		}
 	}
@@ -323,7 +286,7 @@ std::vector < std::pair<QColor, ImageRaw>  > ActionClass::shootPictures
 	SDL_DestroyWindow(win);
 	SDL_ShowCursor(true);
 
-	return rawImages;
+	return foregroundImages;
 
 }
 
@@ -333,7 +296,7 @@ std::vector<int> ActionClass::ennumeratePossibleValues(Camera::EnnumerableProper
     return CameraList::instance()->activeCamera()->ennumeratePossibleValues(ep);
 }
 
-std::string ActionClass::generateFilePathNoExtension(const std::string& folder,
+std::string ActionClass::generateFilePath(const std::string& folder,
 	const std::string& colour, time_t time_)
 {
 	time_t t = time_;   // get time now
@@ -347,4 +310,102 @@ std::string ActionClass::generateFilePathNoExtension(const std::string& folder,
 		ToString(now->tm_sec) + "." +
         colour,
 		folder);
+}
+
+bool ActionClass::generateGroundTruth(std::vector<RawRgbEds>& foreground,
+	std::vector<RawRgbEds>& background, const std::string& path, time_t t)
+{
+	//Save temp images
+	Inform("Saving ground truth temporaries");
+
+	assert(foreground.size() >= 5 && background.size() >= 5);
+
+	//Generate file names
+	QStringList fTempNames;
+	QStringList bTempNames;
+	QStringList aName = { generateFilePath(path, "A.tiff", t).c_str() };
+	QStringList fName = { generateFilePath(path, "F.tiff", t).c_str() };
+	QStringList afName = { generateFilePath(path, "AF.tiff", t).c_str() };
+
+	for (size_t i = 0; i < 5; ++i)
+		fTempNames.append(generateFilePath(path, "_temp_f_" + ToString(i) + ".rawrgb", t).c_str());
+	for (size_t i = 0; i < 5; ++i)
+		bTempNames.append(generateFilePath(path, "_temp_b_" + ToString(i) + ".rawrgb", t).c_str());
+
+	//Save images
+	for (size_t i = 0; i < 5; ++i)
+		if (!SaveRawRgbEds(std::string(fTempNames[i].toUtf8()), foreground[i]))
+		{
+			Error("Could not save " + std::string(fTempNames[i].toUtf8()));
+			return false;
+		}
+	for (size_t i = 0; i < 5; ++i)
+		if (!SaveRawRgbEds(std::string(bTempNames[i].toUtf8()), background[i]))
+		{
+			Error("Could not save " + std::string(bTempNames[i].toUtf8()));
+			return false;
+		}
+
+	//Clear buffers
+	foreground.clear();
+	background.clear();
+
+	//Execute ground truth application
+	Inform("Executing ground truth application");
+	QProcess* gtProcess = new QProcess(Window::instance());
+	QStringList collectiveArgs = { QStringList{ path.c_str() } +fTempNames + bTempNames + aName + fName + afName };
+	int code = gtProcess->execute("GroundTruth.exe", collectiveArgs);
+	delete gtProcess;
+
+	//Delete temporary files
+	for (auto it = fTempNames.begin(); it != fTempNames.end(); ++it)
+		std::remove(it->toUtf8());
+	for (auto it = bTempNames.begin(); it != bTempNames.end(); ++it)
+		std::remove(it->toUtf8());
+
+	if (code != 0)
+	{
+		Error("Non zero return code: " + ToString(code));
+		return false;
+	}
+
+	return true;
+}
+
+std::vector<RawRgbEds> ActionClass::saveImages(std::vector < std::pair<QColor, ImageRaw>  > & images,
+	const std::string& path, const std::string& nameSuffix,
+	time_t t, bool saveRaw, bool saveProcessed, const std::string& processedExtension)
+{
+	if (images.size() == 0)
+		return{};
+
+	std::vector<RawRgbEds> out;
+	out.reserve(images.size());
+
+	for (size_t i = 0; i < images.size(); ++i)
+	{
+		//Save raw
+		if (saveRaw)
+		{
+			std::string pathRaw = generateFilePath(
+				path, std::string(images[i].first.name().toUtf8()) + nameSuffix, t) + ".cr2";
+			if (!images[i].second.saveToFile(pathRaw))
+				return{};
+		}
+
+		//Get RGB
+		out.push_back(images[i].second.findRgb());
+		if (std::get<2>(out.back()).size() == 0)
+			return{};
+
+		//Save processed
+		if (saveProcessed)
+		{
+			std::string pathProcessed = generateFilePath(
+				path, std::string(images[i].first.name().toUtf8()) + nameSuffix, t) + "." + processedExtension;
+			images[i].second.saveProcessed(pathProcessed, &out.back());
+		}
+	}
+
+	return out;
 }

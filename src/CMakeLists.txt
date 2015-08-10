@@ -1,24 +1,50 @@
 #link_directories(${GTKMM_LIBRARY_DIRS})
 #include_directories(${GTKMM_INCLUDE_DIRS})
 
+set(MAIN_SOURCES
+    "window.cpp"
+    "vertex.cpp"
+    "source.cpp"
+    "shaderprogram.cpp"
+    "openglbox.cpp"
+    "io.cpp"
+    "imageshader.cpp"
+    "image.cpp"
+    "colourshader.cpp"
+    "actionclass.cpp"
+    "camera.cpp"
+    "edsstreamcontainer.cpp")
 
-file(GLOB SOURCES
-    "*.cpp"
-)
+set(MAIN_HEADERS
+	"window.h"
+	"vertex.h"
+	"Vec.h"
+	"shaderprogram.h"
+	"propertymap.h"
+	"openglbox.h"
+	"io.h"
+	"imageshader.h"
+	"image.h"
+	"colourshader.h"
+	"actionclass.h"
+	"camera.h"
+	"rawrgbeds.h"
+	"rawrgbchar.h"
+	"edsstreamcontainer.h")
 
-file(GLOB HEADERS
-	"*.h")
+set(GROUND_TRUTH_SOURCES "groundtruthsource.cpp" "groundtruth.cpp" "io.cpp")
+set(GROUND_TRUTH_HEADERS "image.h" "camera.h" "image.h" "rawrgbchar.h" "groundtruth.h")
+
 
 set(MOCS window.h openglbox.h)
 set(UIS mainui.ui)
 
 #prepare QT
 # Find includes in corresponding build directories
-set(CMAKE_PREFIX_PATH C:/Qt/5.4/msvc2013_opengl)
+set(CMAKE_PREFIX_PATH C:/Qt/5.4/msvc2013_opengl ${CMAKE_PREFIX_PATH})
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_AUTOMOC ON)
-set(CMAKE_INCLUDE_CURRENT_DIR ON)
-SET(CMAKE_AUTOUIC ON)  
+set(CMAKE_AUTOUIC ON)  
 
 find_package(Qt5 COMPONENTS Core Widgets Gui OpenGL REQUIRED)
 
@@ -38,17 +64,21 @@ include_directories(${Qt5Core_INCLUDE_DIRS}
 					${Qt5Widgets_DEFINITIONS}
   )
 
-source_group("Generated Sources - Do Not Edit" FILES ${GENERATED_SOURCES})
-
 # Make sure the compiler can find the pre-processed files from qt5_wrap_ui
 include_directories("${CMAKE_BINARY_DIR}")
 
 add_executable(
 				CameraControl # name of the executable
-					 ${SOURCES}
+					 ${MAIN_SOURCES}
 					 ${GENERATED_SOURCES}
-			         ${HEADERS}
+			         ${MAIN_HEADERS}
 				     ${MOCS}
+			    )
+
+add_executable(
+				GroundTruth # name of the executable
+					 ${GROUND_TRUTH_SOURCES}
+			         ${GROUND_TRUTH_HEADERS}
 			    )
 
 #Add OpenGL
@@ -74,10 +104,19 @@ include_directories("${PROJECT_SOURCE_DIR}/third_party/canon/EDSDK/Header")
 
 #Add OpenCV
 include_directories("${PROJECT_SOURCE_DIR}/third_party/opencv/build/include")
-target_link_libraries(CameraControl debug 	  "${PROJECT_SOURCE_DIR}/third_party/opencv/sources/build/lib/Debug/opencv_ts300d.lib"
-											  "${PROJECT_SOURCE_DIR}/third_party/opencv/sources/build/lib/Debug/opencv_world300d.lib")
-target_link_libraries(CameraControl optimized "${PROJECT_SOURCE_DIR}/third_party/opencv/sources/build/lib/Release/opencv_ts300.lib"
-											  "${PROJECT_SOURCE_DIR}/third_party/opencv/sources/build/lib/Release/opencv_world300.lib")
+target_link_libraries(CameraControl debug 	  "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_ts300d.lib"
+											 "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_world300d.lib")
+target_link_libraries(CameraControl optimized "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_ts300.lib"
+											 "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_world300.lib")
+
+target_link_libraries(GroundTruth debug 	  "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_ts300d.lib"
+											 "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_world300d.lib")
+target_link_libraries(GroundTruth optimized "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_ts300.lib"
+											 "${PROJECT_SOURCE_DIR}/third_party/opencv/build/x86/vc12/lib/opencv_world300.lib")
+
+#Set 32/64 bit properties.
+#set_target_properties(CameraControl PROPERTIES COMPILE_FLAGS "-m32" LINK_FLAGS "-m32")
+#set_target_properties(GroundTruth PROPERTIES COMPILE_FLAGS "-m64" LINK_FLAGS "-m64")
 
 # Link QT
 target_link_libraries(CameraControl 
