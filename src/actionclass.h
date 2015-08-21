@@ -4,6 +4,7 @@
 #include "camera.h"
 #include <qstringlist.h>
 #include <chrono>
+#include <qcolor.h>
 
 namespace sf { class RenderWindow; }
 
