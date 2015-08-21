@@ -228,7 +228,7 @@ void OpenGlBox::initializeGL()
 
 		"void main()"
 		"{"
-		"vec2 pos = vec2(vertuv.x, (vertuv.y*(imageSize.y/imageSize.x))*(windowSize.x/windowSize.y));"
+		"vec2 pos = vec2(vertuv.x, (vertuv.y*(imageSize.y/imageSize.x))*(windowSize.y/windowSize.x));"
 		"gl_Position = vec4(pos,0,1);"
 		"uv = vec2(vertuv.z, -vertuv.w);"
 		"}",

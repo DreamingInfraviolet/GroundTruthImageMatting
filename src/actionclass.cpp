@@ -154,11 +154,6 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 	{
 		assert(colours.size() >= 5);
 
-		//Only shoot with first five colours
-		QStringList groundTruthColours;
-		for (int i = 0; i < 5; ++i)
-			groundTruthColours.append(colours[i]);
-
 		//Wait for user
 		Inform("Ground Truth stage: remove the object");
 		int secondsToWait = Window::instance()->showGroundTruthDialog();
@@ -167,7 +162,7 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 		else
 		{
 			auto backgroundStartTime = std::chrono::system_clock::now() + std::chrono::seconds(secondsToWait);
-			backgroundImages = shootPictures(groundTruthColours, true, backgroundStartTime);
+			backgroundImages = shootPictures(colours, true, backgroundStartTime);
 
 			if (backgroundImages.size() == 0)
 				success = false;
@@ -193,7 +188,7 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 	//Generate ground truth
 	if (success && saveGroundTruth)
 	{
-		if(!generateGroundTruth(foregroundRgbs, backgroundRgbs, path, t))
+		if (!generateGroundTruth(foregroundRgbs, backgroundRgbs, path, t))
 			success = false;
 	}
 
@@ -323,9 +318,9 @@ bool ActionClass::generateGroundTruth(std::vector<RawRgbEds>& foreground,
 	//Generate file names
 	QStringList fTempNames;
 	QStringList bTempNames;
-	QStringList aName = { generateFilePath(path, "A.tiff", t).c_str() };
-	QStringList fName = { generateFilePath(path, "F.tiff", t).c_str() };
-	QStringList afName = { generateFilePath(path, "AF.tiff", t).c_str() };
+	QStringList aName = { generateFilePath(path, "A.png", t).c_str() };
+	QStringList fName = { generateFilePath(path, "F.png", t).c_str() };
+	QStringList afName = { generateFilePath(path, "AF.png", t).c_str() };
 
 	for (size_t i = 0; i < 5; ++i)
 		fTempNames.append(generateFilePath(path, "_temp_f_" + ToString(i) + ".rawrgb", t).c_str());

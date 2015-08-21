@@ -40,10 +40,10 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 	for (int i = 0; i < 5; ++i)
 	{
 		Mat matFloatFullF, matFloatFullB;
-		matFloatF[i].convertTo(matFloatFullF, CV_32FC3);
+		matFloatF[i].convertTo(matFloatFullF, CV_32FC3, 1.0/255);
 		resize(matFloatFullF, matFloatF[i], Size(std::get<0>(foreground[i]) / 2, std::get<1>(foreground[i]) / 2));
 		std::get<2>(foreground[i]).clear();
-		matFloatB[i].convertTo(matFloatFullB, CV_32FC3);
+		matFloatB[i].convertTo(matFloatFullB, CV_32FC3, 1.0/255);
 		resize(matFloatFullB, matFloatB[i], Size(std::get<0>(background[i]) / 2, std::get<1>(background[i]) / 2));
 		std::get<2>(background[i]).clear();
 	}
@@ -54,9 +54,9 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 
 	for(int i = 0; i < 5; ++i)
 	{
-		matCharF[i].convertTo(matFloatF[i], CV_32FC3);
+		matCharF[i].convertTo(matFloatF[i], CV_32FC3, 1.0 / 255);
 		std::get<2>(foreground[i]).swap(std::vector<unsigned char> ());
-		matCharB[i].convertTo(matFloatB[i], CV_32FC3);
+		matCharB[i].convertTo(matFloatB[i], CV_32FC3, 1.0 / 255);
 		std::get<2>(background[i]).swap(std::vector<unsigned char>());
 	}
 
@@ -71,13 +71,11 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 							  matFloatB[0], matFloatB[1], matFloatB[2], matFloatB[3], matFloatB[4],
 							  f, af);
 
-	//Convert results to rgb:
-	Mat aR, aRgb, fRgb, afRgb;
-	a.convertTo(aR, CV_8UC1, 255);
-	cvtColor(aR, aRgb, CV_GRAY2RGB);
+		//Convert results to rgb:
+	a.convertTo(a, CV_16UC1, 65535);
+	cvtColor(a, a, CV_GRAY2RGB);
+	f.convertTo(f, CV_16UC3, 65535);
+	af.convertTo(af, CV_16UC3, 65535);
 
-	f.convertTo(fRgb, CV_8UC4);
-	af.convertTo(afRgb, CV_8UC4);
-
-	return{ aRgb, fRgb, afRgb };
+	return{ a, f, af };
 }

@@ -277,10 +277,6 @@ void Window::shootEvent()
 
 	std::string processedExtension = ui.BoxProcessedformat->itemText(ui.BoxProcessedformat->currentIndex()).toUtf8();
 
-	Inform(std::string("Shooting with saveProcessed=") + (saveProcessed ? "TRUE" : "FALSE") +
-		" saveRaw=" + (saveRaw ? "TRUE" : "FALSE") + " delay=" + ToString(delay) +
-		" extension=" + processedExtension);
-
 	//Get and validate colours
 	QStringList colours = mColourModel->stringList();
 	if (colours.size() == 0)
