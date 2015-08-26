@@ -17,8 +17,8 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 
 	for (int i = 0; i < 5; ++i)
 	{
-		matCharF[i] = Mat(std::get<1>(foreground[i]), std::get<0>(foreground[i]), CV_8UC3, &std::get<2>(foreground[i])[0]);
-		matCharB[i] = Mat(std::get<1>(background[i]), std::get<0>(background[i]), CV_8UC3, &std::get<2>(background[i])[0]);
+		matCharF[i] = Mat(std::get<1>(foreground[i]), std::get<0>(foreground[i]), CV_16UC3, &std::get<2>(foreground[i])[0]);
+		matCharB[i] = Mat(std::get<1>(background[i]), std::get<0>(background[i]), CV_16UC3, &std::get<2>(background[i])[0]);
 
 		if (imageLen != std::get<2>(foreground[i]).size() || imageLen != std::get<2>(background[i]).size())
 		{
@@ -36,34 +36,16 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 	Mat f;
 	Mat af;
 
-#ifdef HALVE_GT_IMAGE
-	for (int i = 0; i < 5; ++i)
-	{
-		Mat matFloatFullF, matFloatFullB;
-		matFloatF[i].convertTo(matFloatFullF, CV_32FC3, 1.0/255);
-		resize(matFloatFullF, matFloatF[i], Size(std::get<0>(foreground[i]) / 2, std::get<1>(foreground[i]) / 2));
-		std::get<2>(foreground[i]).clear();
-		matFloatB[i].convertTo(matFloatFullB, CV_32FC3, 1.0/255);
-		resize(matFloatFullB, matFloatB[i], Size(std::get<0>(background[i]) / 2, std::get<1>(background[i]) / 2));
-		std::get<2>(background[i]).clear();
-	}
-
-	f.create(std::get<1>(foreground[0]) / 2, std::get<0>(foreground[0]) / 2, CV_32FC3);
-	af.create(std::get<1>(foreground[0]) / 2, std::get<0>(foreground[0]) / 2, CV_32FC3);
-#else
-
 	for(int i = 0; i < 5; ++i)
 	{
-		matCharF[i].convertTo(matFloatF[i], CV_32FC3, 1.0 / 255);
-		std::get<2>(foreground[i]).swap(std::vector<unsigned char> ());
-		matCharB[i].convertTo(matFloatB[i], CV_32FC3, 1.0 / 255);
-		std::get<2>(background[i]).swap(std::vector<unsigned char>());
+		matCharF[i].convertTo(matFloatF[i], CV_32FC3, 1.0 / 65535);
+		std::get<2>(foreground[i]).swap(std::vector<uint16_t> ());
+		matCharB[i].convertTo(matFloatB[i], CV_32FC3, 1.0 / 65535);
+		std::get<2>(background[i]).swap(std::vector<uint16_t>());
 	}
 
 	f.create(std::get<1>(foreground[0]), std::get<0>(foreground[0]), CV_32FC3);
 	af.create(std::get<1>(foreground[0]), std::get<0>(foreground[0]), CV_32FC3);
-
-#endif
 
 	//Compute:
 	Inform("Generating ground truth");
@@ -76,6 +58,10 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 	cvtColor(a, a, CV_GRAY2RGB);
 	f.convertTo(f, CV_16UC3, 65535);
 	af.convertTo(af, CV_16UC3, 65535);
+
+	//convert to BGR
+	cvtColor(f, f, CV_RGB2BGR);
+	cvtColor(af, af, CV_RGB2BGR);
 
 	return{ a, f, af };
 }

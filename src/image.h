@@ -3,6 +3,7 @@
 #include "EDSDKTypes.h"
 #include "edscontainer.h"
 #include "rawrgbeds.h"
+#include <stdint.h>
 
 namespace cv { class Mat; }
 class EdsStreamContainer;
@@ -11,7 +12,7 @@ class EdsStreamContainer;
 class ImageRaw
 {
 private:
-	std::vector<unsigned char> mData;
+	std::vector<uint16_t> mData;
 	int mHeight = 0, mWidth = 0;
 	bool mFailed = false;
 
@@ -32,7 +33,7 @@ public:
 	* Creates the image from memory, copying from the inputted source.
 	* The memory must describe a valid .cr2 object.
 	* @param imageRef the EdsImageRef object of the image.
-	* @param data A pointer to the data to be copied.
+	* @param data A pointer to the data to be copied (EDS raw image)
 	* @dataSize The number of bytes that constitute the data.
 	* @width The width of the image.
 	* @height The height of the image.
@@ -59,8 +60,8 @@ public:
 
 	/**
 	* Saves the image in a format that can be handled by OpenCV.
-	* If the RGB data was generated beforehand, it may be passed in as the last parameter for performance. */
-	bool saveProcessed(const std::string& path, const RawRgbEds* rgb = nullptr);
+	* The second parameter is the RGB data obtained by . findRgb(). */
+	bool saveProcessed(const std::string& path, const RawRgbEds& rgb);
 
 	/** Saves the .cr2 image to the specified path. */
 	bool saveToFile(const std::string& path);

@@ -170,20 +170,24 @@ bool ActionClass::shootSequence(std::chrono::time_point<std::chrono::system_cloc
 	}
 
 	//Save images
-	if (success)
-		Inform("Processing images");
+	std::vector<RawRgbEds> foregroundRgbs, backgroundRgbs;
 	time_t t = time(0);
 
-	auto foregroundRgbs = saveImages(foregroundImages, path, "_foreground",
-		t, saveRaw, saveProcessed, processedExtension);
-	foregroundImages.clear();
+	if (success)
+	{
+		Inform("Processing images");
+	
+		foregroundRgbs = saveImages(foregroundImages, path, "_foreground",
+			t, saveRaw, saveProcessed, processedExtension);
+		foregroundImages.clear();
 
-	auto backgroundRgbs = saveImages(backgroundImages, path, "_background",
-		t, saveRaw, saveProcessed, processedExtension);
-	backgroundImages.clear();
+		backgroundRgbs = saveImages(backgroundImages, path, "_background",
+			t, saveRaw, saveProcessed, processedExtension);
+		backgroundImages.clear();
 
-	if (foregroundRgbs.size() == 0 || backgroundRgbs.size() == 0)
-		success = false;
+		if (foregroundRgbs.size() == 0 || backgroundRgbs.size() == 0)
+			success = false;
+	}
 
 	//Generate ground truth
 	if (success && saveGroundTruth)
@@ -398,7 +402,7 @@ std::vector<RawRgbEds> ActionClass::saveImages(std::vector < std::pair<QColor, I
 		{
 			std::string pathProcessed = generateFilePath(
 				path, std::string(images[i].first.name().toUtf8()) + nameSuffix, t) + "." + processedExtension;
-			images[i].second.saveProcessed(pathProcessed, &out.back());
+			images[i].second.saveProcessed(pathProcessed, out.back());
 		}
 	}
 

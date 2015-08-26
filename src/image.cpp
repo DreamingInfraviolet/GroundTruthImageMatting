@@ -89,23 +89,15 @@ ImageRaw& ImageRaw::operator = (const ImageRaw& img)
 
 ImageRaw::ImageRaw(const ImageRaw& img)
 {
-	mData = img.mData;
-	mFailed = img.mFailed;
-	mWidth = img.mWidth;
-	mHeight = img.mHeight;
-	mImageRef = img.mImageRef;
+	*this = img;
 }
 
 ImageRaw::ImageRaw(ImageRaw&& img)
 {
-	mImageRef = std::move(img.mImageRef);
-	mData.swap(img.mData);
-	mFailed = img.mFailed;
-	mWidth = img.mWidth;
-	mHeight = img.mHeight;
+	*this = std::move(img);
 }
 
-bool ImageRaw::saveProcessed(const std::string& path, const RawRgbEds* rgb)
+bool ImageRaw::saveProcessed(const std::string& path, const RawRgbEds& rgb)
 {
 	Inform("Saving " + path);
 
@@ -115,29 +107,15 @@ bool ImageRaw::saveProcessed(const std::string& path, const RawRgbEds* rgb)
 	int width, height;
 	EdsStreamContainer container;
 
-
-	if (rgb == nullptr)
-	{
-		auto rgbStream(findRgb());
-		width = std::get<0>(rgbStream);
-		height = std::get<1>(rgbStream);
-		container = (std::get<2>(rgbStream));
-		if (width*height == 0)
-			return false;
-	}
-	else
-	{
-		width = std::get<0>(*rgb);
-		height = std::get<1>(*rgb);
-		container = (std::get<2>(*rgb));
-	}
+	width = std::get<0>(rgb);
+	height = std::get<1>(rgb);
+	container = (std::get<2>(rgb));
 
 	if (container.size() == 0)
 		return false;
 
-
 	//Create image mat for rgb
-	cv::Mat imageRgb(height, width, CV_8UC3, container.pointer());
+	cv::Mat imageRgb(height, width, CV_16UC3, container.pointer());
 
 	//Save mat
 	if (!cv::imwrite(path, imageRgb))
@@ -145,8 +123,6 @@ bool ImageRaw::saveProcessed(const std::string& path, const RawRgbEds* rgb)
 		Error("Could not save image file");
 		return false;
 	}
-
-
 
 	return true;
 }
@@ -198,7 +174,7 @@ RawRgbEds ImageRaw::findRgb()
 	EdsSize size;
 	size.height = imageInfo.height;
 	size.width = imageInfo.width;
-	CHECK_EDS_ERROR(EdsGetImage(mImageRef.mRef, kEdsImageSrc_RAWFullView, kEdsTargetImageType_RGB,
+	CHECK_EDS_ERROR(EdsGetImage(mImageRef.mRef, kEdsImageSrc_RAWFullView, kEdsTargetImageType_RGB16,
 		imageInfo.effectiveRect, size, rgbStream.mRef), "Could not retrieve the image", {});
 
 	return std::make_tuple(size.width, size.height, rgbStream);

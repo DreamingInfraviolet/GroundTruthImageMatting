@@ -38,7 +38,7 @@ int main(int argc, char** argv)
 	}
 
 	//first five images are foregrounds, and the next five backgrounds
-	Inform("Loading rgb image files");
+	Inform("Loading temporaries");
 	RawRgbChar images[10];
 
 	for (int i = 0; i < 10; ++i)

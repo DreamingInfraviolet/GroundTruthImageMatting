@@ -13,6 +13,7 @@ class ColourShader;
 * This is the class that takes care of drawing the live view of the camera on the QT window.
 * The first frame retrieves the image and processes it on a thread, and the second frame uploads and displays it.
 * Define OPENGL_BOX_TICK to be the desired interval at which a frame is to be submitted in milliseconds.
+* Note that higher fps reduces responsiveness.
 * */
 
 #ifndef OPENGL_BOX_TICK

@@ -369,29 +369,23 @@ bool Camera::select()
 
 void Camera::deselect()
 {
+	Inform(std::string("Deselecting camera ") + name());
+
+	//Close session
+	WARN_EDS_ERROR(EdsCloseSession(mCameraRef), "Could not close camera session");
+
+	//Unlock UI
+	EdsSendStatusCommand(mCameraRef, kEdsCameraStatusCommand_UIUnLock, 0);
+
 	//if no CameraList instance
 	CameraList* cameraList = CameraList::instance();
 	if (cameraList == nullptr)
-	{
-		Error("Can not deselect a camera with no valid CameraList.");
 		return;
-	}
 
-	//Deselect
+	//Deselect as active
 	Camera* activeCamera = cameraList->activeCamera();
 	if (activeCamera == this)
-	{
-		Inform(std::string("Deselecting camera ") + name());
-
-		//Close session
-		WARN_EDS_ERROR(EdsCloseSession(mCameraRef), "Could not close camera session");
-
-		//Unlock UI
-		EdsSendStatusCommand(mCameraRef, kEdsCameraStatusCommand_UIUnLock, 0);
-
-		//Reset current active camera
 		cameraList->activeCamera(nullptr);
-	}
 }
 
 std::string Camera::name()
@@ -515,7 +509,7 @@ bool Camera::shoot()
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_DriveMode, 0, sizeof(EdsInt32), &shootingMode),
 		"Could not set shooting mode to single shot.", false);
 
-	//Set RAW format
+	//Set full-resolution RAW format
 	EdsInt32 rawMode = 0x00640f0f;
 	CHECK_EDS_ERROR(EdsSetPropertyData(mCameraRef, kEdsPropID_ImageQuality, 0, sizeof(EdsInt32), &rawMode),
 		"Could not get the camera quality information.", false);
@@ -540,13 +534,6 @@ ImageRaw Camera::retrieveLastImage()
 	ImageRaw img = std::move(mLastImage);
 	mLastImage.fail();
 	return img;
-}
-
-bool Camera::resetShutdownTimer()
-{
-	CHECK_EDS_ERROR(EdsSendCommand(mCameraRef, kEdsCameraCommand_ExtendShutDownTimer, 0),
-		"Could not reset shutdown timer", false);
-	return true;
 }
 
 EdsError EDSCALLBACK Camera::objectCallback(EdsObjectEvent inEvent, EdsBaseRef inRef, EdsVoid * inContext)

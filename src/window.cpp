@@ -30,7 +30,7 @@ bool Window::initialise()
 	connect(ui.ButtonGo, SIGNAL(pressed()), this, SLOT(shootEvent()));
 
 
-	ui.BoxProcessedformat->addItems({ "tiff", "bmp", "jpg", "png" });
+	ui.BoxProcessedformat->addItems({ "tiff", "png" });
 
 	mColourModel = std::unique_ptr<QStringListModel>(new QStringListModel(this));
 	ui.ListColours->setModel(mColourModel.get());

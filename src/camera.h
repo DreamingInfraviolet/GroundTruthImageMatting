@@ -126,9 +126,6 @@ public:
 	* */
 	ImageRaw retrieveLastImage();
 
-	/** Resets the shutdown timer of the camera, keeping it awake for longer without powering off. */
-	bool resetShutdownTimer();
-
 	/** Returns a jpg image file of the live stream. Blocks until the image is ready. */
 	std::vector<unsigned char> getLiveImage();
 };
