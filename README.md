@@ -25,7 +25,7 @@ Note that the debug output provided through the console is highly useful, and is
 the main feedback mechanism. So you should preferably run the program through a terminal!
 
 System requirements:
-  At least 1.7GB of free RAM memory. May use as much as 500MB of free disk space.
+  At least 1.7GB of free RAM memory. May use as much as 1000B of free disk space.
   These requirements for a seemingly simple application are due to the pure
   amount of data that must be processed (13 images in F32 3-component format at its peak).
 
