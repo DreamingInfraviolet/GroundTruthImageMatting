@@ -59,9 +59,5 @@ std::vector<cv::Mat> GenerateGroundTruth (RawRgbChar* foreground, RawRgbChar* ba
 	f.convertTo(f, CV_16UC3, 65535);
 	af.convertTo(af, CV_16UC3, 65535);
 
-	//convert to BGR
-	cvtColor(f, f, CV_RGB2BGR);
-	cvtColor(af, af, CV_RGB2BGR);
-
 	return{ a, f, af };
 }

@@ -5,6 +5,9 @@
 #include "rawrgbeds.h"
 #include <stdint.h>
 
+/** WARNING: While the images are called RGB, they are actually stored aas GBR. This is due to a 
+* last-minute decision. */
+
 namespace cv { class Mat; }
 class EdsStreamContainer;
 

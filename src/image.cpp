@@ -115,10 +115,10 @@ bool ImageRaw::saveProcessed(const std::string& path, const RawRgbEds& rgb)
 		return false;
 
 	//Create image mat for rgb
-	cv::Mat imageRgb(height, width, CV_16UC3, container.pointer());
+	cv::Mat imageBgr(height, width, CV_16UC3, container.pointer());
 
 	//Save mat
-	if (!cv::imwrite(path, imageRgb))
+	if (!cv::imwrite(path, imageBgr))
 	{
 		Error("Could not save image file");
 		return false;
@@ -176,6 +176,10 @@ RawRgbEds ImageRaw::findRgb()
 	size.width = imageInfo.width;
 	CHECK_EDS_ERROR(EdsGetImage(mImageRef.mRef, kEdsImageSrc_RAWFullView, kEdsTargetImageType_RGB16,
 		imageInfo.effectiveRect, size, rgbStream.mRef), "Could not retrieve the image", {});
+
+	//Convert to GBR
+	cv::Mat m(size.height, size.width, CV_16UC3, rgbStream.pointer());
+	cv::cvtColor(m, m, CV_RGB2BGR);
 
 	return std::make_tuple(size.width, size.height, rgbStream);
 }
