@@ -1,4 +1,4 @@
-# ImageBackgroundRemoval
+# Ground Truth Image Matting
 A project for MU 2015
 
 This is part of my summer internship. The purpose of the application is to take a
